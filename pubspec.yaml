@@ -1,0 +1,63 @@
+name: billiard_billing
+description: Billing System for Billiard
+publish_to: "none"
+
+version: 1.2.0+12
+
+environment:
+  sdk: ">=3.12.0 <4.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # State Management
+  flutter_riverpod: ^2.6.1
+
+  # HTTP
+  dio: ^5.9.0
+
+  # Routing
+  go_router: ^16.1.0
+
+  # Window Desktop
+  window_manager: ^0.5.1
+
+
+  # Storage
+  shared_preferences: ^2.5.3
+
+  # UI
+  google_fonts: ^6.3.2
+  flutter_svg: ^2.2.0
+  intl: ^0.20.2
+  unified_esc_pos_printer: ^3.4.0
+  file_picker: ^9.0.0
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/icons/
+
+flutter_launcher_icons:
+  image_path: "assets/icons/icon.png"
+  android: true
+  ios: true
+  remove_alpha_ios: true
+  background_color_ios: "#FFFFFF"
+  web:
+    generate: true
+  windows:
+    generate: true
+  macos:
+    generate: true
