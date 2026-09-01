@@ -7,6 +7,7 @@ import '../../../models/pagination_info.dart';
 import '../../../models/table_category.dart';
 import '../../../shared/widgets/app_toast.dart';
 import '../data/table_category_repository.dart';
+import '../data/table_setting_repository.dart';
 import 'table_category_form_dialog.dart';
 
 /// "Kategori Meja" popup — lists/manages table categories (VIP, Reguler,
@@ -23,6 +24,7 @@ class _TableCategoryDialogState extends State<TableCategoryDialog> {
   static const _perPage = 10;
 
   final _repository = TableCategoryRepository();
+  final _tableRepository = TableSettingRepository();
 
   List<TableCategory> _categories = [];
   PaginationInfo _pagination = PaginationInfo.empty;
@@ -107,10 +109,11 @@ class _TableCategoryDialogState extends State<TableCategoryDialog> {
     if (result == null) return;
 
     try {
-      await _repository.addTableCategory(
+      final categoryId = await _repository.addTableCategory(
         name: result.name,
         priceOption: result.priceOption,
       );
+      await _assignTablesToCategory(categoryId, result.selectedTableIds);
       if (!mounted) return;
       AppToast.success(context, "Kategori ${result.name} berhasil ditambahkan");
       await _load(_pagination.currentPage);
@@ -134,12 +137,34 @@ class _TableCategoryDialogState extends State<TableCategoryDialog> {
         active: result.active,
         priceOption: result.priceOption,
       );
+      await _assignTablesToCategory(category.id, result.selectedTableIds);
       if (!mounted) return;
       AppToast.success(context, "Kategori ${result.name} berhasil diperbarui");
       await _load(_pagination.currentPage);
     } on TableCategoryRepositoryException catch (e) {
       if (!mounted) return;
       AppToast.error(context, e.message);
+    }
+  }
+
+  /// Assigns this category to every checked table — see the caveat on
+  /// TableCategoryFormResult.selectedTableIds: unchecking a table that
+  /// already used this category leaves it untouched, it isn't cleared.
+  Future<void> _assignTablesToCategory(
+    int categoryId,
+    List<int> tableIds,
+  ) async {
+    for (final tableId in tableIds) {
+      try {
+        await _tableRepository.updateTableSetting(
+          tableId: tableId,
+          categoryId: categoryId,
+        );
+      } on TableSettingRepositoryException {
+        // Satu meja gagal tidak boleh membatalkan penyimpanan kategori itu
+        // sendiri (yang sudah berhasil) - meja itu bisa diatur manual lagi
+        // lewat Setting > Table.
+      }
     }
   }
 

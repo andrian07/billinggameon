@@ -8,9 +8,50 @@ import '../../../models/role.dart';
 import '../../../models/role_menu_access.dart';
 import '../data/role_repository.dart';
 
-/// Lets a supervisor pick which menus a role can view/add/edit/delete —
+// Codes (ms_menu.menu_code, from Access/menu_list_no_pagging) that correspond
+// to an actual, currently role-gated sidebar item, in the same order as
+// AppSidebar's own sections — with the label the sidebar actually shows,
+// since the backend's raw menu_name doesn't always match (e.g. "Master
+// Role" here vs "Role & Akses" in the sidebar, "Pos" vs "POS"). ms_menu also
+// accumulates leftover/test rows over time (old features, QA fixtures) that
+// no longer correspond to anything in the sidebar; anything not listed here
+// is filtered out of the dialog entirely so it can't drift out of sync with
+// what the sidebar actually shows. "opname" (owner-only by a separate,
+// harder-coded mechanism) and "ganti_password" (always visible to everyone)
+// are deliberately excluded too, since neither is actually role-gated.
+const _sidebarMenuOrder = <String>[
+  'meja', 'pos', 'transaksi',
+  'master_member', 'master_pengguna', 'master_role', 'master_promo',
+  'produk', 'pembelian', 'unit', 'kategori',
+  'Laporan',
+  'harga_meja', 'setting_table', 'tukar_point',
+];
+
+const _sidebarMenuLabels = <String, String>{
+  'meja': 'Meja',
+  'pos': 'POS',
+  'transaksi': 'Transaksi',
+  'master_member': 'Member',
+  'master_pengguna': 'Pengguna',
+  'master_role': 'Role & Akses',
+  'master_promo': 'Promo',
+  'produk': 'Produk',
+  'pembelian': 'Pembelian',
+  'unit': 'Unit',
+  'kategori': 'Kategori',
+  'Laporan': 'Laporan (Billing, Cafe, Saldo, Stok, Pembelian)',
+  'harga_meja': 'Harga Meja',
+  'setting_table': 'Table',
+  'tukar_point': 'Tukar Point',
+};
+
+/// Lets a supervisor pick which menus a role can access in the sidebar —
 /// loads the current state via Access/role_access and saves the whole
-/// matrix back through Access/update_role_access.
+/// matrix back through Access/update_role_access. The backend still keeps
+/// separate can_view/can_add/can_edit/can_delete flags per menu, but
+/// nothing in the app actually checks add/edit/delete individually (only
+/// can_view drives sidebar visibility - see AppSidebar), so this UI just
+/// shows one "akses" checkbox per menu and mirrors it onto all four flags.
 class RoleAccessDialog extends StatefulWidget {
   final Role role;
 
@@ -44,7 +85,12 @@ class _RoleAccessDialogState extends State<RoleAccessDialog> {
     });
 
     try {
-      final menus = await _repository.getMenus();
+      final allMenus = await _repository.getMenus();
+      final menusByCode = {for (final m in allMenus) m.code: m};
+      final menus = [
+        for (final code in _sidebarMenuOrder)
+          if (menusByCode[code] != null) menusByCode[code]!,
+      ];
       final existing = await _repository.getRoleAccess(widget.role.id);
       final existingByMenu = {for (final a in existing) a.menuId: a};
 
@@ -111,7 +157,7 @@ class _RoleAccessDialogState extends State<RoleAccessDialog> {
       insetPadding: const EdgeInsets.all(24),
       child: ConstrainedBox(
         constraints: BoxConstraints(
-          maxWidth: 640,
+          maxWidth: 480,
           maxHeight: screenSize.height * 0.85,
         ),
         child: Container(
@@ -242,16 +288,12 @@ class _RoleAccessDialogState extends State<RoleAccessDialog> {
       child: Row(
         children: [
           Expanded(
-            flex: 3,
             child: Text(
               "Menu",
               style: AppText.caption.copyWith(fontWeight: FontWeight.w700),
             ),
           ),
-          _matrixHeaderCell("Lihat"),
-          _matrixHeaderCell("Tambah"),
-          _matrixHeaderCell("Ubah"),
-          _matrixHeaderCell("Hapus"),
+          _matrixHeaderCell("Akses"),
         ],
       ),
     );
@@ -259,7 +301,7 @@ class _RoleAccessDialogState extends State<RoleAccessDialog> {
 
   Widget _matrixHeaderCell(String label) {
     return SizedBox(
-      width: 64,
+      width: 90,
       child: Text(
         label,
         textAlign: TextAlign.center,
@@ -279,9 +321,8 @@ class _RoleAccessDialogState extends State<RoleAccessDialog> {
       child: Row(
         children: [
           Expanded(
-            flex: 3,
             child: Text(
-              menu.name,
+              _sidebarMenuLabels[menu.code] ?? menu.name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
               style: AppText.body,
@@ -289,19 +330,12 @@ class _RoleAccessDialogState extends State<RoleAccessDialog> {
           ),
           _matrixCheckbox(
             value: access.canView,
-            onChanged: (v) => setState(() => access.canView = v),
-          ),
-          _matrixCheckbox(
-            value: access.canAdd,
-            onChanged: (v) => setState(() => access.canAdd = v),
-          ),
-          _matrixCheckbox(
-            value: access.canEdit,
-            onChanged: (v) => setState(() => access.canEdit = v),
-          ),
-          _matrixCheckbox(
-            value: access.canDelete,
-            onChanged: (v) => setState(() => access.canDelete = v),
+            onChanged: (v) => setState(() {
+              access.canView = v;
+              access.canAdd = v;
+              access.canEdit = v;
+              access.canDelete = v;
+            }),
           ),
         ],
       ),
@@ -313,7 +347,7 @@ class _RoleAccessDialogState extends State<RoleAccessDialog> {
     required ValueChanged<bool> onChanged,
   }) {
     return SizedBox(
-      width: 64,
+      width: 90,
       child: Checkbox(
         value: value,
         activeColor: AppColors.primary,

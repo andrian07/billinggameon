@@ -702,6 +702,7 @@ class _CustomerRow extends StatelessWidget {
         phone: _headerText("TELEPON"),
         address: _headerText("ALAMAT"),
         email: _headerText("EMAIL"),
+        saldo: _headerText("SALDO", alignEnd: true),
         point: _headerText("POIN", alignEnd: true),
         aksi: _headerText("AKSI", alignCenter: true),
       );
@@ -741,6 +742,16 @@ class _CustomerRow extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: cellStyle,
+        ),
+        saldo: Text(
+          formatCurrency(c.saldo),
+          textAlign: TextAlign.end,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: cellStyle.copyWith(
+            fontWeight: FontWeight.w600,
+            color: AppColors.primary,
+          ),
         ),
         point: Text(
           formatThousands(c.point),
@@ -838,6 +849,7 @@ class _CustomerRow extends StatelessWidget {
     required Widget phone,
     required Widget address,
     required Widget email,
+    required Widget saldo,
     required Widget point,
     required Widget aksi,
   }) {
@@ -855,6 +867,8 @@ class _CustomerRow extends StatelessWidget {
         Expanded(flex: 3, child: address),
         const SizedBox(width: 10),
         Expanded(flex: 2, child: email),
+        const SizedBox(width: 10),
+        SizedBox(width: 110, child: saldo),
         const SizedBox(width: 10),
         SizedBox(width: 56, child: point),
         const SizedBox(width: 10),

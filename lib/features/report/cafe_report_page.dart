@@ -604,23 +604,41 @@ class _CafeReportRowWidget extends StatelessWidget {
           textAlign: TextAlign.end,
           style: cellStyle.copyWith(fontWeight: FontWeight.w700),
         ),
-        status: Align(
-          alignment: Alignment.center,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: statusColor.withValues(alpha: .15),
-              borderRadius: BorderRadius.circular(30),
-            ),
-            child: Text(
-              r.status,
-              style: AppText.caption.copyWith(
-                fontSize: 10,
-                color: statusColor,
-                fontWeight: FontWeight.w600,
+        status: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: statusColor.withValues(alpha: .15),
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: Text(
+                r.status,
+                style: AppText.caption.copyWith(
+                  fontSize: 10,
+                  color: statusColor,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-          ),
+            if (!isDone && r.cancelledBy != null) ...[
+              const SizedBox(height: 2),
+              Tooltip(
+                message: "Dibatalkan oleh ${r.cancelledBy}",
+                child: Text(
+                  "oleh ${r.cancelledBy}",
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: AppText.caption.copyWith(
+                    fontSize: 9,
+                    color: AppColors.textHint,
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
       ),
     );
@@ -680,7 +698,7 @@ class _CafeReportRowWidget extends StatelessWidget {
         const SizedBox(width: 10),
         Expanded(flex: 2, child: total),
         const SizedBox(width: 10),
-        SizedBox(width: 80, child: status),
+        SizedBox(width: 100, child: status),
       ],
     );
   }

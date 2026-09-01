@@ -139,23 +139,20 @@ class TransactionRepository {
       return id != null && id != 0;
     });
 
-    final customerNames = hasId('customer_id')
-        ? await _fetchCustomerNames()
-        : const <int, String>{};
+    // Unlike billing transactions, the cafe endpoint returns customer_name
+    // directly on each row (a free-text name captured at checkout, not
+    // necessarily tied to a Customer master record) — no client-side join
+    // needed here.
     final promoNames = hasId('promo_id')
         ? await _fetchPromoNames()
         : const <int, String>{};
     final paymentNames = await _fetchPaymentNames();
 
     final transactions = rowsJson.map((json) {
-      final customerId = int.tryParse(json['customer_id']?.toString() ?? "");
       final promoId = int.tryParse(json['promo_id']?.toString() ?? "");
       final paymentId = int.tryParse(json['payment_id']?.toString() ?? "");
       return CafeTransaction.fromJson(
         json,
-        customerName: (customerId != null && customerId != 0)
-            ? customerNames[customerId]
-            : null,
         promoName: (promoId != null && promoId != 0)
             ? promoNames[promoId]
             : null,
@@ -200,6 +197,34 @@ class TransactionRepository {
   }) async {
     await _post(ApiEndpoints.cancelTransactionCafe, {
       "transaction_cafe_id": transactionCafeId,
+      "created_by": createdBy,
+    });
+  }
+
+  /// Rejected server-side (and kept out of reach client-side too) when the
+  /// transaction's old or new payment method is "Potong Saldo" — no logic
+  /// exists to correct the customer's saldo for a payment-method edit made
+  /// after the sale, only for the original save.
+  Future<void> editBillingPayment({
+    required int transactionId,
+    required int paymentId,
+    required String createdBy,
+  }) async {
+    await _post(ApiEndpoints.editPaymentTransaction, {
+      "transaction_id": transactionId,
+      "payment_id": paymentId,
+      "created_by": createdBy,
+    });
+  }
+
+  Future<void> editCafePayment({
+    required int transactionCafeId,
+    required int paymentId,
+    required String createdBy,
+  }) async {
+    await _post(ApiEndpoints.editPaymentTransactionCafe, {
+      "transaction_cafe_id": transactionCafeId,
+      "payment_id": paymentId,
       "created_by": createdBy,
     });
   }

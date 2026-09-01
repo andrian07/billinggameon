@@ -6,6 +6,7 @@ import '../../../core/theme/app_text.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../models/keep_transaction.dart';
 import '../../../shared/widgets/app_toast.dart';
+import '../../../shared/widgets/pin_guard.dart';
 import '../data/cafe_repository.dart';
 import 'rename_keep_transaction_dialog.dart';
 
@@ -136,6 +137,9 @@ class _KeepTransactionListDialogState extends State<KeepTransactionListDialog> {
       ),
     );
     if (confirmed != true) return;
+
+    if (!mounted) return;
+    if (!await PinGuard.confirm(context)) return;
 
     setState(() => _deletingId = transaction.id);
 
@@ -318,7 +322,7 @@ class _KeepTransactionListDialogState extends State<KeepTransactionListDialog> {
         _loadingDetailId != null || _deletingId != null || _renamingId != null;
     final tableLabel = (transaction.table != null && transaction.table != 0)
         ? "Meja ${transaction.table}"
-        : "Takeaway";
+        : "-";
 
     return InkWell(
       onTap: busy ? null : () => _select(transaction),

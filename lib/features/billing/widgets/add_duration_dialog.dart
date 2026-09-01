@@ -149,7 +149,7 @@ class _AddDurationDialogState extends State<AddDurationDialog> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                "Tambah Durasi",
+                "Tambah Durasi - ${table.name}",
                 style: AppText.title.copyWith(fontWeight: FontWeight.w700),
               ),
               const SizedBox(height: 2),

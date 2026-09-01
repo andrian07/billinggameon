@@ -77,6 +77,15 @@ class SessionStorage {
     return result;
   }
 
+  /// Branch (cabang) the logged-in cashier belongs to - 1 = Danau Sentarum,
+  /// 2 = P.Aim (from ms_user.user_branch, see Auth_model::login in
+  /// billing_api). Used to scope the booking room list to this branch only.
+  /// Defaults to 1 for sessions saved before this field existed.
+  Future<int> getBranch() async {
+    final session = await getSession();
+    return int.tryParse(session?['branch']?.toString() ?? "") ?? 1;
+  }
+
   Future<void> clearSession() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.remove(_key);

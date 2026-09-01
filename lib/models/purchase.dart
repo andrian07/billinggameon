@@ -78,6 +78,7 @@ class Purchase {
   final String invoiceNumber;
   final DateTime date;
   final String? supplier;
+  final String? supplierInvoice;
   final int total;
   final PurchaseStatus status;
   final String createdBy;
@@ -90,6 +91,7 @@ class Purchase {
     required this.invoiceNumber,
     required this.date,
     this.supplier,
+    this.supplierInvoice,
     required this.total,
     required this.status,
     required this.createdBy,
@@ -104,6 +106,7 @@ class Purchase {
       invoiceNumber: json['inv']?.toString() ?? "",
       date: _parseDate(json['date']),
       supplier: _asNullableString(json['supplier']),
+      supplierInvoice: _asNullableString(json['supplier_invoice']),
       total: _asInt(json['total']),
       status: _parseStatus(json['status']),
       createdBy: json['created_by']?.toString() ?? "",
@@ -125,6 +128,7 @@ class PurchaseDetail extends Purchase {
     required super.invoiceNumber,
     required super.date,
     super.supplier,
+    super.supplierInvoice,
     required super.total,
     required super.status,
     required super.createdBy,
@@ -143,6 +147,7 @@ class PurchaseDetail extends Purchase {
       invoiceNumber: base.invoiceNumber,
       date: base.date,
       supplier: base.supplier,
+      supplierInvoice: base.supplierInvoice,
       total: base.total,
       status: base.status,
       createdBy: base.createdBy,

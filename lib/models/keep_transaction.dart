@@ -82,6 +82,29 @@ class KeepTransaction {
   }
 }
 
+class KeepTransactionAddon {
+  final int productId;
+  final String productName;
+  final int productPrice;
+  final int quantity;
+
+  const KeepTransactionAddon({
+    required this.productId,
+    required this.productName,
+    required this.productPrice,
+    required this.quantity,
+  });
+
+  factory KeepTransactionAddon.fromJson(Map<String, dynamic> json) {
+    return KeepTransactionAddon(
+      productId: _asInt(json['product_id']),
+      productName: json['product_name']?.toString() ?? "",
+      productPrice: _asInt(json['product_price']),
+      quantity: _asInt(json['qty']),
+    );
+  }
+}
+
 class KeepTransactionItem {
   final int productId;
   final String productName;
@@ -89,6 +112,7 @@ class KeepTransactionItem {
   final int quantity;
   final int subTotal;
   final String? note;
+  final List<KeepTransactionAddon> addons;
 
   const KeepTransactionItem({
     required this.productId,
@@ -97,10 +121,12 @@ class KeepTransactionItem {
     required this.quantity,
     required this.subTotal,
     this.note,
+    this.addons = const [],
   });
 
   factory KeepTransactionItem.fromJson(Map<String, dynamic> json) {
     final note = json['note']?.toString();
+    final rawAddons = json['addons'];
 
     return KeepTransactionItem(
       productId: _asInt(json['product_id']),
@@ -109,6 +135,12 @@ class KeepTransactionItem {
       quantity: _asInt(json['qty']),
       subTotal: _asInt(json['sub_total']),
       note: (note == null || note.isEmpty) ? null : note,
+      addons: rawAddons is List
+          ? rawAddons
+              .whereType<Map<String, dynamic>>()
+              .map(KeepTransactionAddon.fromJson)
+              .toList()
+          : const [],
     );
   }
 }

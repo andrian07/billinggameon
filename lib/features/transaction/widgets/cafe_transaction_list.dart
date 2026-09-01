@@ -7,11 +7,14 @@ import '../../../core/theme/app_text.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../models/cafe_receipt.dart';
 import '../../../models/cafe_transaction.dart';
+import '../../../models/payment_method.dart';
 import '../../../models/transaction.dart';
 import '../../../services/receipt_printer_service.dart';
 import '../../../services/session_storage.dart';
 import '../../../shared/widgets/app_toast.dart';
+import '../../../shared/widgets/pin_guard.dart';
 import '../data/transaction_repository.dart';
+import 'edit_payment_dialog.dart';
 
 class CafeTransactionList extends StatefulWidget {
   const CafeTransactionList({super.key});
@@ -21,47 +24,58 @@ class CafeTransactionList extends StatefulWidget {
 }
 
 class CafeTransactionListState extends State<CafeTransactionList> {
-  static const _perPage = 20;
+  // Ukuran halaman TAMPILAN (paginasi lokal di client) - bukan lagi ukuran per_page yang diminta
+  // ke server. Semua transaksi dimuat sekali (lihat _load()), lalu difilter+dipaginasi di sini,
+  // persis pola yang dipakai TransactionPage (Billing) supaya search-nya konsisten.
+  static const _pageSize = 20;
 
   final _repository = TransactionRepository();
   final _receiptPrinter = ReceiptPrinterService();
+  final _searchController = TextEditingController();
 
   List<CafeTransaction> _transactions = [];
-  int _currentPage = 1;
-  int _totalPages = 1;
-  int _totalItems = 0;
+  String _search = "";
+  DateTime? _startDate;
+  DateTime? _endDate;
+  int _page = 0;
   bool _loading = true;
   String? _error;
   int? _reprintingId;
   int? _cancelingId;
+  int? _editingPaymentId;
 
   @override
   void initState() {
     super.initState();
-    _load(1);
+    _load();
   }
 
-  /// Reloads the currently displayed page — exposed for
-  /// [TransactionPage]'s header refresh button via a [GlobalKey].
-  Future<void> refresh() => _load(_currentPage);
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
-  Future<void> _load(int page) async {
+  /// Reloads the full list — exposed for [TransactionPage]'s header refresh
+  /// button via a [GlobalKey].
+  Future<void> refresh() => _load();
+
+  Future<void> _load() async {
     setState(() {
       _loading = true;
       _error = null;
     });
 
     try {
+      // per_page besar supaya seluruh data termuat sekali (search & paginasi selanjutnya dilakukan
+      // di client) - sama seperti TransactionRepository.getCompletedTransactions() untuk Billing.
       final result = await _repository.getCafeTransactions(
-        page: page,
-        perPage: _perPage,
+        page: 1,
+        perPage: 1000,
       );
       if (!mounted) return;
       setState(() {
         _transactions = result.transactions;
-        _currentPage = result.pagination.currentPage;
-        _totalPages = result.pagination.totalPages;
-        _totalItems = result.pagination.totalItems;
         _loading = false;
       });
     } on TransactionRepositoryException catch (e) {
@@ -71,6 +85,75 @@ class CafeTransactionListState extends State<CafeTransactionList> {
         _loading = false;
       });
     }
+  }
+
+  List<CafeTransaction> get _filtered {
+    final query = _search.trim().toLowerCase();
+
+    return _transactions.where((t) {
+      if (!_matchesDateRange(t.date)) return false;
+      if (query.isEmpty) return true;
+
+      return t.invoiceNumber.toLowerCase().contains(query) ||
+          (t.table?.toLowerCase().contains(query) ?? false) ||
+          (t.promoName?.toLowerCase().contains(query) ?? false) ||
+          t.createdBy.toLowerCase().contains(query) ||
+          formatDate(t.date).contains(query);
+    }).toList();
+  }
+
+  bool _matchesDateRange(DateTime date) {
+    final day = DateTime(date.year, date.month, date.day);
+    if (_startDate != null && day.isBefore(_startDate!)) return false;
+    if (_endDate != null && day.isAfter(_endDate!)) return false;
+    return true;
+  }
+
+  void _onSearchChanged(String value) {
+    setState(() {
+      _search = value;
+      _page = 0;
+    });
+  }
+
+  Future<void> _pickStartDate() async {
+    final now = DateTime.now();
+    final result = await showDatePicker(
+      context: context,
+      firstDate: DateTime(now.year - 2),
+      lastDate: _endDate ?? now,
+      initialDate: _startDate ?? _endDate ?? now,
+    );
+
+    if (result == null) return;
+    setState(() {
+      _startDate = DateTime(result.year, result.month, result.day);
+      _page = 0;
+    });
+  }
+
+  Future<void> _pickEndDate() async {
+    final now = DateTime.now();
+    final result = await showDatePicker(
+      context: context,
+      firstDate: _startDate ?? DateTime(now.year - 2),
+      lastDate: now,
+      initialDate: _endDate ?? _startDate ?? now,
+    );
+
+    if (result == null) return;
+    setState(() {
+      _endDate = DateTime(result.year, result.month, result.day);
+      _page = 0;
+    });
+  }
+
+  void _clearDateFilter() {
+    setState(() {
+      _startDate = null;
+      _endDate = null;
+      _page = 0;
+    });
   }
 
   Future<void> _reprintReceipt(CafeTransaction transaction) async {
@@ -88,7 +171,8 @@ class CafeTransactionListState extends State<CafeTransactionList> {
           businessAddress: BusinessInfo.address,
           invoiceNumber: detail.invoiceNumber,
           date: detail.date,
-          table: detail.table != null ? "Meja ${detail.table}" : "Takeaway",
+          table: detail.table != null ? "Meja ${detail.table}" : null,
+          customerName: detail.customerName,
           items: [
             for (final item in detail.items)
               CafeReceiptItem(
@@ -96,9 +180,19 @@ class CafeTransactionListState extends State<CafeTransactionList> {
                 quantity: item.quantity,
                 price: item.price,
                 note: item.note,
+                addons: [
+                  for (final addon in item.addons)
+                    CafeReceiptAddon(
+                      name: addon.name,
+                      quantity: addon.quantity,
+                      price: addon.price,
+                    ),
+                ],
               ),
           ],
           subtotal: detail.subTotal,
+          discountPercent: detail.discount,
+          discountAmount: (detail.subTotal * detail.discount / 100).round(),
           tax: detail.tax,
           total: detail.totalBill,
           paymentMethod: detail.paymentMethod,
@@ -159,6 +253,9 @@ class CafeTransactionListState extends State<CafeTransactionList> {
 
     if (confirmed != true) return;
 
+    if (!mounted) return;
+    if (!await PinGuard.confirm(context)) return;
+
     setState(() => _cancelingId = transaction.id);
     try {
       final session = await SessionStorage().getSession();
@@ -172,12 +269,48 @@ class CafeTransactionListState extends State<CafeTransactionList> {
         context,
         "Transaksi ${transaction.invoiceNumber} dibatalkan",
       );
-      await _load(_currentPage);
+      await _load();
     } on TransactionRepositoryException catch (e) {
       if (!mounted) return;
       AppToast.error(context, e.message);
     } finally {
       if (mounted) setState(() => _cancelingId = null);
+    }
+  }
+
+  Future<void> _editPayment(CafeTransaction transaction) async {
+    if (_editingPaymentId != null) return;
+
+    final result = await showDialog<PaymentMethod>(
+      context: context,
+      builder: (_) => EditPaymentDialog(
+        invoiceNumber: transaction.invoiceNumber,
+        currentPaymentId: transaction.paymentId,
+        currentPaymentName: transaction.paymentName ?? "-",
+      ),
+    );
+    if (result == null) return;
+
+    setState(() => _editingPaymentId = transaction.id);
+    try {
+      final session = await SessionStorage().getSession();
+      final createdBy = session?['username']?.toString() ?? "";
+      await _repository.editCafePayment(
+        transactionCafeId: transaction.id,
+        paymentId: result.id,
+        createdBy: createdBy,
+      );
+      if (!mounted) return;
+      AppToast.success(
+        context,
+        "Metode pembayaran ${transaction.invoiceNumber} diubah ke ${result.name}",
+      );
+      await _load();
+    } on TransactionRepositoryException catch (e) {
+      if (!mounted) return;
+      AppToast.error(context, e.message);
+    } finally {
+      if (mounted) setState(() => _editingPaymentId = null);
     }
   }
 
@@ -190,8 +323,18 @@ class CafeTransactionListState extends State<CafeTransactionList> {
       return _buildErrorState(_error!);
     }
 
+    final filtered = _filtered;
+    final pageCount = (filtered.length / _pageSize).ceil().clamp(1, 1 << 30);
+    final page = _page.clamp(0, pageCount - 1);
+    final pageItems = filtered.skip(page * _pageSize).take(_pageSize).toList();
+
     return Column(
       children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
+          child: _buildFilterRow(),
+        ),
+        const Divider(height: 1),
         Container(
           color: AppColors.background.withValues(alpha: .5),
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
@@ -199,14 +342,14 @@ class CafeTransactionListState extends State<CafeTransactionList> {
         ),
         const Divider(height: 1),
         Expanded(
-          child: _transactions.isEmpty
+          child: pageItems.isEmpty
               ? _buildEmptyState()
               : ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  itemCount: _transactions.length,
+                  itemCount: pageItems.length,
                   itemBuilder: (context, index) => _row(
-                    no: (_currentPage - 1) * _perPage + index + 1,
-                    transaction: _transactions[index],
+                    no: page * _pageSize + index + 1,
+                    transaction: pageItems[index],
                     striped: index.isEven,
                   ),
                 ),
@@ -214,9 +357,96 @@ class CafeTransactionListState extends State<CafeTransactionList> {
         const Divider(height: 1),
         Padding(
           padding: const EdgeInsets.all(16),
-          child: _buildPagination(),
+          child: _buildPagination(filtered.length, page, pageCount),
         ),
       ],
+    );
+  }
+
+  Widget _buildFilterRow() {
+    return Row(
+      children: [
+        Expanded(
+          child: SizedBox(
+            height: 36,
+            child: TextField(
+              controller: _searchController,
+              onChanged: _onSearchChanged,
+              style: AppText.bodySecondary,
+              decoration: const InputDecoration(
+                isDense: true,
+                hintText: "Cari no. invoice, meja, kasir...",
+                prefixIcon: Icon(Icons.search, size: 18),
+                prefixIconConstraints: BoxConstraints(
+                  minWidth: 34,
+                  minHeight: 34,
+                ),
+                contentPadding: EdgeInsets.symmetric(vertical: 8),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        _dateBox(
+          label: "Dari Tanggal",
+          value: _startDate,
+          onTap: _pickStartDate,
+        ),
+        const SizedBox(width: 6),
+        Text("s/d", style: AppText.caption),
+        const SizedBox(width: 6),
+        _dateBox(
+          label: "Sampai Tanggal",
+          value: _endDate,
+          onTap: _pickEndDate,
+        ),
+        if (_startDate != null || _endDate != null) ...[
+          const SizedBox(width: 8),
+          InkWell(
+            onTap: _clearDateFilter,
+            child: const Icon(
+              Icons.close_rounded,
+              size: 16,
+              color: AppColors.textSecondary,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _dateBox({
+    required String label,
+    required DateTime? value,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(10),
+      onTap: onTap,
+      child: Container(
+        height: 36,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        decoration: BoxDecoration(
+          color: AppColors.background,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.calendar_today_rounded,
+              size: 14,
+              color: AppColors.textSecondary,
+            ),
+            const SizedBox(width: 6),
+            Text(
+              value == null ? label : formatDate(value),
+              style: AppText.caption,
+            ),
+          ],
+        ),
+      ),
     );
   }
 
@@ -234,7 +464,7 @@ class CafeTransactionListState extends State<CafeTransactionList> {
           Text(message, style: AppText.bodySecondary, textAlign: TextAlign.center),
           const SizedBox(height: 12),
           FilledButton(
-            onPressed: () => _load(_currentPage),
+            onPressed: _load,
             child: const Text("Coba Lagi"),
           ),
         ],
@@ -262,34 +492,87 @@ class CafeTransactionListState extends State<CafeTransactionList> {
     );
   }
 
-  Widget _buildPagination() {
-    final startItem = _totalItems == 0 ? 0 : (_currentPage - 1) * _perPage + 1;
-    final endItem = (_currentPage * _perPage).clamp(0, _totalItems);
+  Widget _buildPagination(int totalItems, int page, int pageCount) {
+    final startItem = totalItems == 0 ? 0 : page * _pageSize + 1;
+    final endItem = ((page + 1) * _pageSize).clamp(0, totalItems);
 
     return Row(
       children: [
         Text(
-          "Menampilkan $startItem-$endItem dari $_totalItems transaksi",
+          "Menampilkan $startItem-$endItem dari $totalItems transaksi",
           style: AppText.caption,
         ),
         const Spacer(),
         _pageArrow(
           icon: Icons.chevron_left_rounded,
-          onTap: _currentPage > 1 ? () => _load(_currentPage - 1) : null,
+          onTap: page > 0 ? () => setState(() => _page = page - 1) : null,
         ),
-        const SizedBox(width: 10),
-        Text(
-          "Halaman $_currentPage dari $_totalPages",
-          style: AppText.caption,
-        ),
-        const SizedBox(width: 10),
+        const SizedBox(width: 6),
+        ..._buildPageButtons(page, pageCount),
+        const SizedBox(width: 6),
         _pageArrow(
           icon: Icons.chevron_right_rounded,
-          onTap: _currentPage < _totalPages
-              ? () => _load(_currentPage + 1)
+          onTap: page < pageCount - 1
+              ? () => setState(() => _page = page + 1)
               : null,
         ),
       ],
+    );
+  }
+
+  List<Widget> _buildPageButtons(int page, int pageCount) {
+    final window = _pageWindow(pageCount, page);
+    final widgets = <Widget>[];
+
+    for (var i = 0; i < window.length; i++) {
+      if (i > 0 && window[i] - window[i - 1] > 1) {
+        widgets.add(
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text("...", style: AppText.caption),
+          ),
+        );
+      }
+      widgets.add(_pageNumberButton(window[i], active: window[i] == page));
+      widgets.add(const SizedBox(width: 6));
+    }
+
+    return widgets;
+  }
+
+  List<int> _pageWindow(int pageCount, int current) {
+    if (pageCount <= 7) return List.generate(pageCount, (i) => i);
+
+    final set = <int>{0, pageCount - 1, current};
+    if (current - 1 >= 0) set.add(current - 1);
+    if (current + 1 <= pageCount - 1) set.add(current + 1);
+
+    return set.toList()..sort();
+  }
+
+  Widget _pageNumberButton(int index, {required bool active}) {
+    return InkWell(
+      borderRadius: BorderRadius.circular(8),
+      onTap: active ? null : () => setState(() => _page = index),
+      child: Container(
+        width: 32,
+        height: 32,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: active ? AppColors.primary : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: active ? AppColors.primary : AppColors.border,
+          ),
+        ),
+        child: Text(
+          "${index + 1}",
+          style: AppText.caption.copyWith(
+            color: active ? Colors.white : AppColors.textSecondary,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ),
     );
   }
 
@@ -322,7 +605,7 @@ class CafeTransactionListState extends State<CafeTransactionList> {
       invoice: _headerText("No. Invoice"),
       tanggal: _headerText("Tanggal"),
       meja: _headerText("Meja"),
-      member: _headerText("Member"),
+      customer: _headerText("Customer"),
       total: _headerText("Total", alignEnd: true),
       kasir: _headerText("Kasir"),
       status: _headerText("Status", alignCenter: true),
@@ -354,7 +637,7 @@ class CafeTransactionListState extends State<CafeTransactionList> {
         ),
         tanggal: Text(formatDate(transaction.date), style: cellStyle),
         meja: Text(transaction.table ?? "-", style: cellStyle),
-        member: Text(
+        customer: Text(
           transaction.customerName ?? "-",
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
@@ -366,23 +649,41 @@ class CafeTransactionListState extends State<CafeTransactionList> {
           style: cellStyle.copyWith(fontWeight: FontWeight.w600),
         ),
         kasir: Text(transaction.createdBy, style: cellStyle),
-        status: Align(
-          alignment: Alignment.center,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: statusColor.withValues(alpha: .15),
-              borderRadius: BorderRadius.circular(30),
-            ),
-            child: Text(
-              isCompleted ? "Selesai" : "Dibatalkan",
-              style: AppText.caption.copyWith(
-                fontSize: 10,
-                color: statusColor,
-                fontWeight: FontWeight.w600,
+        status: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                color: statusColor.withValues(alpha: .15),
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: Text(
+                isCompleted ? "Selesai" : "Dibatalkan",
+                style: AppText.caption.copyWith(
+                  fontSize: 10,
+                  color: statusColor,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
-          ),
+            if (!isCompleted && transaction.cancelledBy != null) ...[
+              const SizedBox(height: 2),
+              Tooltip(
+                message: "Dibatalkan oleh ${transaction.cancelledBy}",
+                child: Text(
+                  "oleh ${transaction.cancelledBy}",
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: AppText.caption.copyWith(
+                    fontSize: 9,
+                    color: AppColors.textHint,
+                  ),
+                ),
+              ),
+            ],
+          ],
         ),
         aksi: isCompleted
             ? Row(
@@ -395,6 +696,15 @@ class CafeTransactionListState extends State<CafeTransactionList> {
                     onTap: () => _reprintReceipt(transaction),
                   ),
                   const SizedBox(width: 6),
+                  if (transaction.paymentName != "Potong Saldo") ...[
+                    _ActionButton(
+                      icon: Icons.sync_alt_rounded,
+                      tooltip: "Ubah metode pembayaran",
+                      loading: _editingPaymentId == transaction.id,
+                      onTap: () => _editPayment(transaction),
+                    ),
+                    const SizedBox(width: 6),
+                  ],
                   _ActionButton(
                     icon: Icons.cancel_outlined,
                     tooltip: "Batalkan transaksi",
@@ -428,7 +738,7 @@ class CafeTransactionListState extends State<CafeTransactionList> {
     required Widget invoice,
     required Widget tanggal,
     required Widget meja,
-    required Widget member,
+    required Widget customer,
     required Widget total,
     required Widget kasir,
     required Widget status,
@@ -445,7 +755,7 @@ class CafeTransactionListState extends State<CafeTransactionList> {
         const SizedBox(width: 12),
         Expanded(flex: 1, child: meja),
         const SizedBox(width: 12),
-        Expanded(flex: 2, child: member),
+        Expanded(flex: 2, child: customer),
         const SizedBox(width: 12),
         Expanded(flex: 2, child: total),
         const SizedBox(width: 12),
@@ -453,7 +763,7 @@ class CafeTransactionListState extends State<CafeTransactionList> {
         const SizedBox(width: 12),
         SizedBox(width: 90, child: status),
         const SizedBox(width: 12),
-        SizedBox(width: 76, child: aksi),
+        SizedBox(width: 112, child: aksi),
       ],
     );
   }

@@ -125,6 +125,7 @@ class CafeReportRow {
   final int tax;
   final int totalBill;
   final String status;
+  final String? cancelledBy;
 
   const CafeReportRow({
     required this.id,
@@ -139,6 +140,7 @@ class CafeReportRow {
     required this.tax,
     required this.totalBill,
     required this.status,
+    this.cancelledBy,
   });
 
   factory CafeReportRow.fromJson(Map<String, dynamic> json) {
@@ -161,6 +163,7 @@ class CafeReportRow {
       tax: _asInt(json['tax']),
       totalBill: _asInt(json['total_bill']),
       status: json['status']?.toString() ?? "",
+      cancelledBy: json['cancelled_by']?.toString(),
     );
   }
 }
@@ -309,6 +312,106 @@ class StockReportRow {
       productCode: json['product_code']?.toString() ?? "",
       productName: json['product_name']?.toString() ?? "",
       totalStock: _asInt(json['total_stock']),
+    );
+  }
+}
+
+class PurchaseReportRow {
+  final int id;
+  final String invoiceNumber;
+  final DateTime date;
+  final String? supplier;
+  final String? supplierInvoice;
+  final int subTotal;
+  final int discount;
+  final int total;
+  final String status;
+  final String createdBy;
+  final String? cancelledBy;
+
+  const PurchaseReportRow({
+    required this.id,
+    required this.invoiceNumber,
+    required this.date,
+    this.supplier,
+    this.supplierInvoice,
+    required this.subTotal,
+    required this.discount,
+    required this.total,
+    required this.status,
+    required this.createdBy,
+    this.cancelledBy,
+  });
+
+  factory PurchaseReportRow.fromJson(Map<String, dynamic> json) {
+    return PurchaseReportRow(
+      id: _asInt(json['id']),
+      invoiceNumber: json['inv']?.toString() ?? "",
+      date: DateTime.tryParse(json['date']?.toString() ?? "") ?? DateTime.now(),
+      supplier: json['supplier']?.toString(),
+      supplierInvoice: json['supplier_invoice']?.toString(),
+      subTotal: _asInt(json['sub_total']),
+      discount: _asInt(json['discount']),
+      total: _asInt(json['total']),
+      status: json['status']?.toString() ?? "",
+      createdBy: json['created_by']?.toString() ?? "",
+      cancelledBy: json['cancelled_by']?.toString(),
+    );
+  }
+}
+
+/// Purchase report totals — a subset of [ReportSummary]'s shape (no tax,
+/// since purchases don't have one) returned by Report/purchase_report.
+class PurchaseReportSummary {
+  final int invoiceCount;
+  final int totalSubTotal;
+  final int totalDiscount;
+  final int totalBill;
+
+  const PurchaseReportSummary({
+    required this.invoiceCount,
+    required this.totalSubTotal,
+    required this.totalDiscount,
+    required this.totalBill,
+  });
+
+  static const empty = PurchaseReportSummary(
+    invoiceCount: 0,
+    totalSubTotal: 0,
+    totalDiscount: 0,
+    totalBill: 0,
+  );
+
+  factory PurchaseReportSummary.fromJson(Map<String, dynamic> json) {
+    return PurchaseReportSummary(
+      invoiceCount: _asInt(json['jumlah_nota']),
+      totalSubTotal: _asInt(json['total_sub_total']),
+      totalDiscount: _asInt(json['total_discount']),
+      totalBill: _asInt(json['total_bill']),
+    );
+  }
+}
+
+class PurchaseReportResult {
+  final List<PurchaseReportRow> rows;
+  final PurchaseReportSummary summary;
+
+  const PurchaseReportResult({required this.rows, required this.summary});
+
+  factory PurchaseReportResult.fromJson(Map<String, dynamic> json) {
+    final rawData = json['data'];
+    final rawSummary = json['summary'];
+
+    return PurchaseReportResult(
+      rows: rawData is List
+          ? rawData
+                .whereType<Map<String, dynamic>>()
+                .map(PurchaseReportRow.fromJson)
+                .toList()
+          : const [],
+      summary: rawSummary is Map<String, dynamic>
+          ? PurchaseReportSummary.fromJson(rawSummary)
+          : PurchaseReportSummary.empty,
     );
   }
 }

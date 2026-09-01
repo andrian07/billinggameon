@@ -12,6 +12,7 @@ class Transaction {
   final String? customerName;
   final String? promoName;
   final String cashierName;
+  final int paymentId;
   final String paymentMethod;
   final int total;
   final TransactionStatus status;
@@ -26,6 +27,7 @@ class Transaction {
     this.customerName,
     this.promoName,
     required this.cashierName,
+    required this.paymentId,
     required this.paymentMethod,
     required this.total,
     this.status = TransactionStatus.completed,
@@ -50,6 +52,7 @@ class Transaction {
       customerName: customerName,
       promoName: promoName,
       cashierName: json['created_by']?.toString() ?? "",
+      paymentId: _asInt(json['payment_id']),
       paymentMethod: paymentMethodName ?? "-",
       total: _asInt(json['total_bill']),
       status: _parseStatus(json['status']),

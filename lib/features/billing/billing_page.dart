@@ -13,6 +13,7 @@ import '../../services/receipt_printer_service.dart';
 import '../../services/session_storage.dart';
 import '../../shared/widgets/app_layout.dart';
 import '../../shared/widgets/app_toast.dart';
+import '../../shared/widgets/pin_guard.dart';
 import '../cashier/data/cashier_repository.dart';
 import 'data/billing_repository.dart';
 import 'data/invoice_repository.dart';
@@ -47,13 +48,22 @@ class _BillingPageState extends State<BillingPage> {
   final _cashierRepository = CashierRepository();
 
   CashierClosingSummary? _cashierSummary;
+  bool _isOwner = false;
 
   @override
   void initState() {
     super.initState();
     _loadTables();
     _loadCashierSummary();
+    _loadRole();
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) => _tick());
+  }
+
+  // "Rincian Transaksi Billing/Cafe" (ringkasan omzet hari ini) hanya untuk owner
+  Future<void> _loadRole() async {
+    final isOwner = await _sessionStorage.isSuperadmin();
+    if (!mounted) return;
+    setState(() => _isOwner = isOwner);
   }
 
   /// Powers the "Rincian Transaksi Billing/Cafe" stat cards — today's
@@ -107,9 +117,40 @@ class _BillingPageState extends State<BillingPage> {
     }
   }
 
-  List<PoolTable> get _filteredTables => _filter == null
-      ? _tables
-      : _tables.where((t) => t.status == _filter).toList();
+  // Kalau _sortByTimer aktif (lewat tombol di header, lihat _buildStatusHeader),
+  // meja Timer yang sedang berjalan diurutkan berdasarkan sisa waktu tersedikit
+  // (paling dekat habis) - supaya kasir bisa langsung lihat meja mana yang perlu
+  // segera ditindaklanjuti (tambah durasi/checkout). Meja lain (belum main, atau
+  // mode Reguler yang tidak ada batas waktu) tetap di urutan aslinya, ditaruh
+  // setelah semua meja Timer yang sedang berjalan. Kalau tidak aktif, urutan asli
+  // (dari API) dipakai apa adanya.
+  bool _sortByTimer = false;
+
+  Duration? _timerRemaining(PoolTable table) {
+    if (table.status != TableStatus.playing) return null;
+    if (table.sessionType != SessionType.timer) return null;
+    if (table.endAt == null) return null;
+    return table.endAt!.difference(DateTime.now());
+  }
+
+  List<PoolTable> get _filteredTables {
+    final base = _filter == null
+        ? _tables
+        : _tables.where((t) => t.status == _filter).toList();
+
+    if (!_sortByTimer) return base;
+
+    final sorted = [...base];
+    sorted.sort((a, b) {
+      final aRemaining = _timerRemaining(a);
+      final bRemaining = _timerRemaining(b);
+      if (aRemaining == null && bRemaining == null) return 0;
+      if (aRemaining == null) return 1;
+      if (bRemaining == null) return -1;
+      return aRemaining.compareTo(bRemaining);
+    });
+    return sorted;
+  }
 
   void _selectTable(String id) {
     setState(() => _selectedTableId = id);
@@ -188,6 +229,7 @@ class _BillingPageState extends State<BillingPage> {
     final endAt = result.duration != null ? now.add(result.duration!) : null;
 
     try {
+      final session = await _sessionStorage.getSession();
       await _billingRepository.bookTable(
         tableId: table.id,
         mode: result.sessionType,
@@ -197,6 +239,7 @@ class _BillingPageState extends State<BillingPage> {
         endTime: endAt,
         duration: result.duration,
         useSavedTime: result.useSavedTime,
+        createdBy: session?['username']?.toString(),
       );
       if (!mounted) return;
       AppToast.success(context, "Berhasil membuka ${table.name}");
@@ -332,6 +375,16 @@ class _BillingPageState extends State<BillingPage> {
     }
   }
 
+  static const _cancelGracePeriod = Duration(minutes: 6);
+
+  // batal meja hanya boleh dalam 6 menit pertama sejak sesi dimulai - sama dengan guard di
+  // Billing.php::cancel_table(). Dicek juga di sini supaya tombolnya sudah abu-abu/nonaktif
+  // duluan, bukan cuma menunggu backend menolak.
+  bool _canCancel(PoolTable table) {
+    if (table.startAt == null) return true;
+    return DateTime.now().difference(table.startAt!) <= _cancelGracePeriod;
+  }
+
   void _cancelTransaction(PoolTable table) async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -363,6 +416,9 @@ class _BillingPageState extends State<BillingPage> {
     );
 
     if (confirmed != true) return;
+
+    if (!mounted) return;
+    if (!await PinGuard.confirm(context)) return;
 
     try {
       final session = await _sessionStorage.getSession();
@@ -407,9 +463,10 @@ class _BillingPageState extends State<BillingPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          _buildStatsRow(),
-
-          const SizedBox(height: 16),
+          if (_isOwner) ...[
+            _buildStatsRow(),
+            const SizedBox(height: 16),
+          ],
 
           _buildStatusHeader(),
 
@@ -527,6 +584,8 @@ class _BillingPageState extends State<BillingPage> {
                 const SizedBox(width: 8),
                 _filterChip("Ready", TableStatus.ready),
                 const SizedBox(width: 12),
+                _sortByTimerButton(),
+                const SizedBox(width: 12),
                 Container(
                   width: 40,
                   height: 40,
@@ -547,6 +606,50 @@ class _BillingPageState extends State<BillingPage> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _sortByTimerButton() {
+    final active = _sortByTimer;
+
+    return Tooltip(
+      message: active
+          ? "Urutan: Timer paling dekat habis dulu (klik untuk kembali ke urutan asli)"
+          : "Urutkan berdasarkan Timer paling dekat habis",
+      child: InkWell(
+        borderRadius: BorderRadius.circular(10),
+        onTap: () => setState(() => _sortByTimer = !_sortByTimer),
+        child: Container(
+          height: 40,
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: active ? AppColors.primary : AppColors.card,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(
+              color: active ? AppColors.primary : AppColors.border,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.timer_outlined,
+                size: 16,
+                color: active ? Colors.white : AppColors.textSecondary,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                "Urutkan Timer",
+                style: AppText.bodySecondary.copyWith(
+                  color: active ? Colors.white : AppColors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -604,13 +707,14 @@ class _BillingPageState extends State<BillingPage> {
               : _selectTable(table.id),
           onPayment: () => _openPaymentDialog(table),
           onMoveTable: () => _openMoveTableDialog(table),
-          onAddDuration: table.sessionType == SessionType.timer
+          onAddDuration:
+              (table.sessionType == SessionType.timer && !table.hasFixPromo)
               ? () => _openAddDurationDialog(table)
               : null,
           onRoundUpDuration: table.sessionType == SessionType.reguler
               ? () => _openRoundUpDurationDialog(table)
               : null,
-          onCancel: () => _cancelTransaction(table),
+          onCancel: _canCancel(table) ? () => _cancelTransaction(table) : null,
         );
       },
     );

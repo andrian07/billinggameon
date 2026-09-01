@@ -67,24 +67,16 @@ class _TableSettingPageState extends State<TableSettingPage> {
         relay: result.relay,
         number: result.number,
         point: result.point,
-        category: result.category,
+        categoryId: result.categoryId,
       );
       if (!mounted) return;
       AppToast.success(
         context,
         "Setting meja ${result.number} berhasil diperbarui",
       );
-      setState(() {
-        final index = _tables.indexWhere((t) => t.id == table.id);
-        if (index != -1) {
-          _tables[index] = table.copyWith(
-            relay: result.relay,
-            number: result.number,
-            point: result.point,
-            category: result.category,
-          );
-        }
-      });
+      // Reload (bukan patch lokal) supaya categoryName ikut ter-resolve dari server,
+      // bukan cuma categoryId-nya.
+      await _load();
     } on TableSettingRepositoryException catch (e) {
       if (!mounted) return;
       AppToast.error(context, e.message);
@@ -383,7 +375,7 @@ class _TableSettingRow extends StatelessWidget {
       relay: Text("${t.relay}", textAlign: TextAlign.end, style: cellStyle),
       point: Text("${t.point}", textAlign: TextAlign.end, style: cellStyle),
       category: Text(
-        t.category ?? "-",
+        t.categoryName ?? "-",
         textAlign: TextAlign.end,
         style: cellStyle.copyWith(color: AppColors.textHint),
       ),

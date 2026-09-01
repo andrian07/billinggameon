@@ -9,8 +9,14 @@ import '../../../models/price_setting.dart';
 
 class PriceEditResult {
   final int price;
+  final int price2;
+  final int price3;
 
-  const PriceEditResult({required this.price});
+  const PriceEditResult({
+    required this.price,
+    required this.price2,
+    required this.price3,
+  });
 }
 
 class PriceEditDialog extends StatefulWidget {
@@ -34,10 +40,18 @@ class _PriceEditDialogState extends State<PriceEditDialog> {
   late final _controller = TextEditingController(
     text: formatThousands(widget.item.price),
   );
+  late final _controller2 = TextEditingController(
+    text: formatThousands(widget.item.price2),
+  );
+  late final _controller3 = TextEditingController(
+    text: formatThousands(widget.item.price3),
+  );
 
   @override
   void dispose() {
     _controller.dispose();
+    _controller2.dispose();
+    _controller3.dispose();
     super.dispose();
   }
 
@@ -45,7 +59,11 @@ class _PriceEditDialogState extends State<PriceEditDialog> {
     if (!_formKey.currentState!.validate()) return;
 
     Navigator.of(context).pop(
-      PriceEditResult(price: parseThousands(_controller.text) ?? 0),
+      PriceEditResult(
+        price: parseThousands(_controller.text) ?? 0,
+        price2: parseThousands(_controller2.text) ?? 0,
+        price3: parseThousands(_controller3.text) ?? 0,
+      ),
     );
   }
 
@@ -76,10 +94,46 @@ class _PriceEditDialogState extends State<PriceEditDialog> {
                 const Divider(color: AppColors.divider, height: 1),
                 const SizedBox(height: 22),
 
-                _label("Harga"),
+                _label("Harga 1"),
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: _controller,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: const [ThousandsInputFormatter()],
+                  style: AppText.body,
+                  decoration: _inputDecoration(),
+                  validator: (value) {
+                    final parsed = parseThousands(value ?? "");
+                    if (parsed == null || parsed < 0) {
+                      return "Masukkan angka yang valid";
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 18),
+
+                _label("Harga 2"),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _controller2,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: const [ThousandsInputFormatter()],
+                  style: AppText.body,
+                  decoration: _inputDecoration(),
+                  validator: (value) {
+                    final parsed = parseThousands(value ?? "");
+                    if (parsed == null || parsed < 0) {
+                      return "Masukkan angka yang valid";
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 18),
+
+                _label("Harga 3"),
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: _controller3,
                   keyboardType: TextInputType.number,
                   inputFormatters: const [ThousandsInputFormatter()],
                   style: AppText.body,

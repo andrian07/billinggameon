@@ -189,6 +189,62 @@ class ReportRepository {
     );
   }
 
+  Future<PurchaseReportResult> getPurchaseReport({
+    required DateTime dateFrom,
+    required DateTime dateTo,
+    String? supplier,
+  }) async {
+    final data = await _post(ApiEndpoints.purchaseReport, {
+      "date_from": formatApiDate(dateFrom),
+      "date_to": formatApiDate(dateTo),
+      if (supplier != null && supplier.isNotEmpty) "supplier": supplier,
+      "type": "view",
+    });
+
+    final result = data['result'];
+    if (result is! Map<String, dynamic>) {
+      throw const ReportRepositoryException(
+        "Format respons laporan pembelian tidak valid.",
+      );
+    }
+
+    return PurchaseReportResult.fromJson(result);
+  }
+
+  Future<ReportExportFile> exportPurchaseReport({
+    required DateTime dateFrom,
+    required DateTime dateTo,
+    String? supplier,
+    required String type,
+  }) {
+    return _download(
+      ApiEndpoints.purchaseReport,
+      {
+        "date_from": formatApiDate(dateFrom),
+        "date_to": formatApiDate(dateTo),
+        if (supplier != null && supplier.isNotEmpty) "supplier": supplier,
+        "type": type,
+      },
+      defaultBasename: "laporan_pembelian",
+      type: type,
+    );
+  }
+
+  /// Distinct supplier names ever used on a purchase — for the report's
+  /// supplier filter dropdown.
+  Future<List<String>> getPurchaseSuppliers() async {
+    final data = await _post(ApiEndpoints.purchaseSuppliers, const {});
+
+    final result = data['result'];
+    if (result is! List) {
+      throw const ReportRepositoryException(
+        "Format respons daftar supplier tidak valid.",
+      );
+    }
+
+    return result.map((e) => e.toString()).toList();
+  }
+
   Future<ReportExportFile> _download(
     String url,
     Map<String, dynamic> payload, {

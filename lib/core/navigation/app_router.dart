@@ -3,8 +3,11 @@ import 'package:go_router/go_router.dart';
 
 import '../../features/auth/login_page.dart';
 import '../../features/billing/billing_page.dart';
+import '../../features/booking/booking_page.dart';
 import '../../features/category/category_page.dart';
 import '../../features/customer/customer_page.dart';
+import '../../features/opname/opname_add_page.dart';
+import '../../features/opname/opname_page.dart';
 import '../../features/pos/pos_page.dart';
 import '../../features/product/product_page.dart';
 import '../../features/promo/promo_page.dart';
@@ -12,9 +15,11 @@ import '../../features/purchase/purchase_add_page.dart';
 import '../../features/purchase/purchase_page.dart';
 import '../../features/report/billing_report_page.dart';
 import '../../features/report/cafe_report_page.dart';
+import '../../features/report/purchase_report_page.dart';
 import '../../features/report/saldo_report_page.dart';
 import '../../features/report/stock_report_page.dart';
 import '../../features/role/role_page.dart';
+import '../../features/settings/change_password_page.dart';
 import '../../features/settings/point_exchange_page.dart';
 import '../../features/settings/saldo_page.dart';
 import '../../features/settings/settings_page.dart';
@@ -87,6 +92,10 @@ final appRouter = GoRouter(
           _fadeThroughPage(const TransactionPage()),
     ),
     GoRoute(
+      path: "/booking",
+      pageBuilder: (context, state) => _fadeThroughPage(const BookingPage()),
+    ),
+    GoRoute(
       path: "/pengguna",
       pageBuilder: (context, state) => _fadeThroughPage(const UserPage()),
     ),
@@ -120,6 +129,15 @@ final appRouter = GoRouter(
           _fadeThroughPage(const PurchaseAddPage()),
     ),
     GoRoute(
+      path: "/opname",
+      pageBuilder: (context, state) => _fadeThroughPage(const OpnamePage()),
+    ),
+    GoRoute(
+      path: "/opname/tambah",
+      pageBuilder: (context, state) =>
+          _fadeThroughPage(const OpnameAddPage()),
+    ),
+    GoRoute(
       path: "/laporan/billing",
       pageBuilder: (context, state) =>
           _fadeThroughPage(const BillingReportPage()),
@@ -140,6 +158,11 @@ final appRouter = GoRouter(
           _fadeThroughPage(const StockReportPage()),
     ),
     GoRoute(
+      path: "/laporan/pembelian",
+      pageBuilder: (context, state) =>
+          _fadeThroughPage(const PurchaseReportPage()),
+    ),
+    GoRoute(
       path: "/unit",
       pageBuilder: (context, state) => _fadeThroughPage(const UnitPage()),
     ),
@@ -151,6 +174,11 @@ final appRouter = GoRouter(
       path: "/setting/table",
       pageBuilder: (context, state) =>
           _fadeThroughPage(const TableSettingPage()),
+    ),
+    GoRoute(
+      path: "/setting/ganti-password",
+      pageBuilder: (context, state) =>
+          _fadeThroughPage(const ChangePasswordPage()),
     ),
     GoRoute(
       path: "/setting/point-exchange",

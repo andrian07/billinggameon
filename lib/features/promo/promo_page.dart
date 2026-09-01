@@ -118,6 +118,9 @@ class _PromoPageState extends State<PromoPage> {
         type: result.type,
         value: result.value,
         hourGained: result.hourGained,
+        validDays: result.validDays,
+        validTimeStart: result.validTimeStart,
+        validTimeEnd: result.validTimeEnd,
       );
       if (!mounted) return;
       _notifySuccess("Promo ${result.name} berhasil ditambahkan");
@@ -142,6 +145,9 @@ class _PromoPageState extends State<PromoPage> {
         type: result.type,
         value: result.value,
         hourGained: result.hourGained,
+        validDays: result.validDays,
+        validTimeStart: result.validTimeStart,
+        validTimeEnd: result.validTimeEnd,
       );
       if (!mounted) return;
       _notifySuccess("Promo ${result.name} berhasil diperbarui");
@@ -584,11 +590,35 @@ class _PromoRow extends StatelessWidget {
 
     return _row(
       no: Text("$no", style: cellStyle.copyWith(color: AppColors.textHint)),
-      name: Text(
-        p.name,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: cellStyle.copyWith(fontWeight: FontWeight.w600),
+      name: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            p.name,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: cellStyle.copyWith(fontWeight: FontWeight.w600),
+          ),
+          if (p.hasDayRestriction || p.hasTimeWindow) ...[
+            const SizedBox(height: 2),
+            Text(
+              [
+                if (p.hasDayRestriction)
+                  p.validDays!.map((d) => weekdayLabels[d]).join(", "),
+                if (p.hasTimeWindow)
+                  "${p.validTimeStart.toString().padLeft(2, '0')}:00-"
+                      "${p.validTimeEnd.toString().padLeft(2, '0')}:00",
+              ].join(" • "),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppText.caption.copyWith(
+                fontSize: 10,
+                color: AppColors.textHint,
+              ),
+            ),
+          ],
+        ],
       ),
       type: Align(
         alignment: Alignment.center,

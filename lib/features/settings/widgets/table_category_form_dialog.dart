@@ -4,16 +4,26 @@ import '../../../core/constants/app_sizes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text.dart';
 import '../../../models/table_category.dart';
+import '../../../models/table_setting.dart';
+import '../data/table_setting_repository.dart';
 
 class TableCategoryFormResult {
   final String name;
   final bool active;
   final int priceOption;
 
+  /// Table ids the user checked to use this category — see the "Meja yang
+  /// Memakai Kategori Ini" section. Only additions are applied by the
+  /// caller (see TableCategoryDialog); unchecking a table that already used
+  /// this category does NOT clear it (category_meja_id has no "none" value
+  /// on the backend - see Billing_model::update_setting_table()).
+  final List<int> selectedTableIds;
+
   const TableCategoryFormResult({
     required this.name,
     required this.active,
     required this.priceOption,
+    this.selectedTableIds = const [],
   });
 }
 
@@ -28,6 +38,7 @@ class TableCategoryFormDialog extends StatefulWidget {
 }
 
 class _TableCategoryFormDialogState extends State<TableCategoryFormDialog> {
+  final _tableRepository = TableSettingRepository();
   final _formKey = GlobalKey<FormState>();
   late final _nameController = TextEditingController(
     text: widget.category?.name ?? "",
@@ -36,6 +47,46 @@ class _TableCategoryFormDialogState extends State<TableCategoryFormDialog> {
   late int _priceOption = widget.category?.priceOption ?? 1;
 
   bool get _isEdit => widget.category != null;
+
+  bool _loadingTables = true;
+  String? _tablesError;
+  List<TableSetting> _tables = [];
+  final Set<int> _selectedTableIds = {};
+
+  @override
+  void initState() {
+    super.initState();
+    _loadTables();
+  }
+
+  Future<void> _loadTables() async {
+    setState(() {
+      _loadingTables = true;
+      _tablesError = null;
+    });
+
+    try {
+      final tables = await _tableRepository.getTableSettings();
+      if (!mounted) return;
+      setState(() {
+        _tables = tables;
+        _selectedTableIds
+          ..clear()
+          ..addAll(
+            tables
+                .where((t) => t.categoryId == widget.category?.id)
+                .map((t) => t.id),
+          );
+        _loadingTables = false;
+      });
+    } on TableSettingRepositoryException catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _tablesError = e.message;
+        _loadingTables = false;
+      });
+    }
+  }
 
   @override
   void dispose() {
@@ -50,6 +101,7 @@ class _TableCategoryFormDialogState extends State<TableCategoryFormDialog> {
         name: _nameController.text.trim(),
         active: _active,
         priceOption: _priceOption,
+        selectedTableIds: _selectedTableIds.toList(),
       ),
     );
   }
@@ -126,6 +178,11 @@ class _TableCategoryFormDialogState extends State<TableCategoryFormDialog> {
                 _buildActiveToggle(),
               ],
 
+              const SizedBox(height: 16),
+              _label("Meja yang Memakai Kategori Ini"),
+              const SizedBox(height: 8),
+              _buildTableSelector(),
+
               const SizedBox(height: 28),
               Row(
                 children: [
@@ -173,6 +230,111 @@ class _TableCategoryFormDialogState extends State<TableCategoryFormDialog> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTableSelector() {
+    if (_loadingTables) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+        decoration: BoxDecoration(
+          color: AppColors.background,
+          borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Row(
+          children: [
+            const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+            const SizedBox(width: 10),
+            Text("Memuat daftar meja...", style: AppText.caption),
+          ],
+        ),
+      );
+    }
+
+    if (_tablesError != null) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.danger.withValues(alpha: .1),
+          borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
+          border: Border.all(color: AppColors.danger.withValues(alpha: .3)),
+        ),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.error_outline_rounded,
+              size: 16,
+              color: AppColors.danger,
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                _tablesError!,
+                style: AppText.caption.copyWith(color: AppColors.danger),
+              ),
+            ),
+            TextButton(onPressed: _loadTables, child: const Text("Coba Lagi")),
+          ],
+        ),
+      );
+    }
+
+    if (_tables.isEmpty) {
+      return Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: AppColors.background,
+          borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
+          border: Border.all(color: AppColors.border),
+        ),
+        child: Text("Belum ada meja terdaftar", style: AppText.caption),
+      );
+    }
+
+    return Container(
+      constraints: const BoxConstraints(maxHeight: 160),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Scrollbar(
+        child: ListView(
+          shrinkWrap: true,
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          children: [
+            for (final table in _tables)
+              CheckboxListTile(
+                dense: true,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: Text(
+                  "Meja ${table.number}",
+                  style: AppText.body.copyWith(fontSize: 13),
+                ),
+                subtitle: table.categoryName != null
+                    ? Text(
+                        "Saat ini: ${table.categoryName}",
+                        style: AppText.caption.copyWith(fontSize: 11),
+                      )
+                    : null,
+                value: _selectedTableIds.contains(table.id),
+                activeColor: AppColors.primary,
+                onChanged: (checked) => setState(() {
+                  if (checked ?? false) {
+                    _selectedTableIds.add(table.id);
+                  } else {
+                    _selectedTableIds.remove(table.id);
+                  }
+                }),
+              ),
+          ],
         ),
       ),
     );

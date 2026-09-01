@@ -119,6 +119,7 @@ class _PurchasePageState extends State<PurchasePage> {
       final createdBy = await _currentUsername();
       await _repository.addPurchase(
         supplier: result.supplier,
+        supplierInvoice: result.supplierInvoice,
         createdBy: createdBy,
         items: result.items,
       );
@@ -596,11 +597,27 @@ class _PurchaseRow extends StatelessWidget {
         style: cellStyle.copyWith(fontWeight: FontWeight.w600),
       ),
       tanggal: Text(formatDate(p.date), style: cellStyle),
-      supplier: Text(
-        p.supplier ?? "-",
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: cellStyle,
+      supplier: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            p.supplier ?? "-",
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: cellStyle,
+          ),
+          if (p.supplierInvoice != null && p.supplierInvoice!.isNotEmpty)
+            Text(
+              "No. Inv: ${p.supplierInvoice}",
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: AppText.caption.copyWith(
+                fontSize: 10,
+                color: AppColors.textHint,
+              ),
+            ),
+        ],
       ),
       total: Text(
         formatCurrency(p.total),

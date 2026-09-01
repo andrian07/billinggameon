@@ -41,7 +41,9 @@ class CafeRepository {
     int? promoId,
     required int paymentId,
     int? table,
+    String? customerName,
     required int tax,
+    double discountPercent = 0,
     required String createdBy,
     required int paidBy,
     required List<CartItem> items,
@@ -51,7 +53,9 @@ class CafeRepository {
       "promo_id": promoId ?? 0,
       "payment_id": paymentId,
       "table": table,
+      "customer_name": customerName,
       "tax": tax,
+      "discount_percent": discountPercent,
       "created_by": createdBy,
       "paid_by": paidBy,
       "items": [
@@ -60,6 +64,11 @@ class CafeRepository {
             "product_id": item.product.id,
             "qty": item.quantity,
             if (item.note != null) "note": item.note,
+            if (item.addons.isNotEmpty)
+              "addons": [
+                for (final addon in item.addons)
+                  {"product_id": addon.product.id, "qty": addon.quantity},
+              ],
           },
       ],
     });
@@ -95,6 +104,11 @@ class CafeRepository {
             "product_id": item.product.id,
             "qty": item.quantity,
             if (item.note != null) "note": item.note,
+            if (item.addons.isNotEmpty)
+              "addons": [
+                for (final addon in item.addons)
+                  {"product_id": addon.product.id, "qty": addon.quantity},
+              ],
           },
       ],
     };

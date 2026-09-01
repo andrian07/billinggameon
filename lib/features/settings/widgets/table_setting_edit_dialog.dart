@@ -12,13 +12,13 @@ class TableSettingEditResult {
   final String number;
   final int relay;
   final int point;
-  final String? category;
+  final int? categoryId;
 
   const TableSettingEditResult({
     required this.number,
     required this.relay,
     required this.point,
-    this.category,
+    this.categoryId,
   });
 }
 
@@ -48,7 +48,7 @@ class _TableSettingEditDialogState extends State<TableSettingEditDialog> {
   bool _loadingCategories = true;
   String? _categoryError;
   List<TableCategory> _categories = [];
-  late String? _selectedCategory = widget.table.category;
+  late int? _selectedCategoryId = widget.table.categoryId;
 
   @override
   void initState() {
@@ -97,7 +97,7 @@ class _TableSettingEditDialogState extends State<TableSettingEditDialog> {
         number: _numberController.text.trim(),
         relay: int.tryParse(_relayController.text.trim()) ?? 0,
         point: int.tryParse(_pointController.text.trim()) ?? 0,
-        category: _selectedCategory,
+        categoryId: _selectedCategoryId,
       ),
     );
   }
@@ -347,11 +347,13 @@ class _TableSettingEditDialogState extends State<TableSettingEditDialog> {
     // Keep the table's current category selectable even if it's since been
     // deactivated/removed from the master list, so saving doesn't silently
     // drop it.
-    final names = _categories.map((c) => c.name).toSet();
-    if (_selectedCategory != null) names.add(_selectedCategory!);
+    final options = {for (final c in _categories) c.id: c.name};
+    if (_selectedCategoryId != null && !options.containsKey(_selectedCategoryId)) {
+      options[_selectedCategoryId!] = widget.table.categoryName ?? "Kategori #$_selectedCategoryId";
+    }
 
-    return DropdownButtonFormField<String?>(
-      initialValue: _selectedCategory,
+    return DropdownButtonFormField<int?>(
+      initialValue: _selectedCategoryId,
       dropdownColor: AppColors.card,
       style: AppText.body,
       isExpanded: true,
@@ -364,17 +366,17 @@ class _TableSettingEditDialogState extends State<TableSettingEditDialog> {
         prefixIcon: Icons.category_outlined,
       ),
       items: [
-        const DropdownMenuItem<String?>(
+        const DropdownMenuItem<int?>(
           value: null,
           child: Text("Tanpa Kategori"),
         ),
-        for (final name in names)
-          DropdownMenuItem<String?>(
-            value: name,
-            child: Text(name, overflow: TextOverflow.ellipsis),
+        for (final entry in options.entries)
+          DropdownMenuItem<int?>(
+            value: entry.key,
+            child: Text(entry.value, overflow: TextOverflow.ellipsis),
           ),
       ],
-      onChanged: (value) => setState(() => _selectedCategory = value),
+      onChanged: (value) => setState(() => _selectedCategoryId = value),
     );
   }
 

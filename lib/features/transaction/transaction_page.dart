@@ -6,15 +6,18 @@ import '../../core/navigation/app_navigation.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text.dart';
 import '../../core/utils/formatters.dart';
+import '../../models/payment_method.dart';
 import '../../models/pool_table.dart';
 import '../../models/receipt.dart';
 import '../../models/transaction.dart';
 import '../../services/receipt_printer_service.dart';
+import '../../services/session_storage.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/app_layout.dart';
 import '../../shared/widgets/app_toast.dart';
 import 'data/transaction_repository.dart';
 import 'widgets/cafe_transaction_list.dart';
+import 'widgets/edit_payment_dialog.dart';
 import 'widgets/saldo_transaction_list.dart';
 import 'widgets/transaction_detail_dialog.dart';
 
@@ -49,6 +52,7 @@ class _TransactionPageState extends State<TransactionPage> {
   _SortField _sortField = _SortField.date;
   bool _sortAscending = false;
   int? _reprintingId;
+  int? _editingPaymentId;
 
   @override
   void initState() {
@@ -136,6 +140,42 @@ class _TransactionPageState extends State<TransactionPage> {
       AppToast.error(context, "Gagal mencetak ulang: $e");
     } finally {
       if (mounted) setState(() => _reprintingId = null);
+    }
+  }
+
+  Future<void> _editPayment(Transaction transaction) async {
+    if (_editingPaymentId != null) return;
+
+    final result = await showDialog<PaymentMethod>(
+      context: context,
+      builder: (_) => EditPaymentDialog(
+        invoiceNumber: transaction.invoiceNumber,
+        currentPaymentId: transaction.paymentId,
+        currentPaymentName: transaction.paymentMethod,
+      ),
+    );
+    if (result == null) return;
+
+    setState(() => _editingPaymentId = transaction.id);
+    try {
+      final session = await SessionStorage().getSession();
+      final createdBy = session?['username']?.toString() ?? "";
+      await _repository.editBillingPayment(
+        transactionId: transaction.id,
+        paymentId: result.id,
+        createdBy: createdBy,
+      );
+      if (!mounted) return;
+      AppToast.success(
+        context,
+        "Metode pembayaran ${transaction.invoiceNumber} diubah ke ${result.name}",
+      );
+      await _load();
+    } on TransactionRepositoryException catch (e) {
+      if (!mounted) return;
+      AppToast.error(context, e.message);
+    } finally {
+      if (mounted) setState(() => _editingPaymentId = null);
     }
   }
 
@@ -496,6 +536,9 @@ class _TransactionPageState extends State<TransactionPage> {
                       onTap: () => _openDetail(pageItems[index]),
                       onReprint: () => _reprintReceipt(pageItems[index]),
                       reprinting: _reprintingId == pageItems[index].id,
+                      onEditPayment: () => _editPayment(pageItems[index]),
+                      editingPayment:
+                          _editingPaymentId == pageItems[index].id,
                     ),
                   ),
           ),
@@ -648,6 +691,8 @@ class _TransactionRow extends StatelessWidget {
   final VoidCallback? onTap;
   final VoidCallback? onReprint;
   final bool reprinting;
+  final VoidCallback? onEditPayment;
+  final bool editingPayment;
 
   const _TransactionRow.header({
     required this.sortField,
@@ -660,7 +705,9 @@ class _TransactionRow extends StatelessWidget {
        striped = false,
        onTap = null,
        onReprint = null,
-       reprinting = false;
+       reprinting = false,
+       onEditPayment = null,
+       editingPayment = false;
 
   const _TransactionRow.data({
     required this.no,
@@ -669,6 +716,8 @@ class _TransactionRow extends StatelessWidget {
     this.onTap,
     this.onReprint,
     this.reprinting = false,
+    this.onEditPayment,
+    this.editingPayment = false,
   }) : header = false,
        sortField = null,
        sortAscending = false,
@@ -767,12 +816,21 @@ class _TransactionRow extends StatelessWidget {
             ),
           ),
           aksi: isCompleted
-              ? Align(
-                  alignment: Alignment.center,
-                  child: _ReprintButton(
-                    reprinting: reprinting,
-                    onTap: onReprint,
-                  ),
+              ? Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    _ReprintButton(
+                      reprinting: reprinting,
+                      onTap: onReprint,
+                    ),
+                    if (t.paymentMethod != "Potong Saldo") ...[
+                      const SizedBox(width: 6),
+                      _EditPaymentButton(
+                        editing: editingPayment,
+                        onTap: onEditPayment,
+                      ),
+                    ],
+                  ],
                 )
               : const SizedBox.shrink(),
         ),
@@ -886,7 +944,7 @@ class _TransactionRow extends StatelessWidget {
         const SizedBox(width: 12),
         SizedBox(width: 90, child: status),
         const SizedBox(width: 12),
-        SizedBox(width: 60, child: aksi),
+        SizedBox(width: 96, child: aksi),
       ],
     );
   }
@@ -930,6 +988,53 @@ class _ReprintButton extends StatelessWidget {
           ),
           child: const Icon(
             Icons.print_outlined,
+            size: 16,
+            color: AppColors.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _EditPaymentButton extends StatelessWidget {
+  final bool editing;
+  final VoidCallback? onTap;
+
+  const _EditPaymentButton({required this.editing, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    if (editing) {
+      return const SizedBox(
+        width: 30,
+        height: 30,
+        child: Center(
+          child: SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    }
+
+    return Tooltip(
+      message: "Ubah metode pembayaran",
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onTap,
+        child: Container(
+          width: 30,
+          height: 30,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: AppColors.background,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: AppColors.border),
+          ),
+          child: const Icon(
+            Icons.sync_alt_rounded,
             size: 16,
             color: AppColors.textSecondary,
           ),

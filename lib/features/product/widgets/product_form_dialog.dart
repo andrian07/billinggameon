@@ -273,7 +273,9 @@ class _ProductFormDialogState extends State<ProductFormDialog> {
                               prefixIcon: Icons.receipt_long_outlined,
                             ),
                             validator: (value) {
-                              final parsed = parseThousands(value ?? "");
+                              final trimmed = (value ?? "").trim();
+                              if (trimmed.isEmpty) return null;
+                              final parsed = parseThousands(trimmed);
                               if (parsed == null || parsed < 0) {
                                 return "Modal tidak valid";
                               }

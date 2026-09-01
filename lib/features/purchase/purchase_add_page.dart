@@ -16,9 +16,14 @@ enum _DiscountType { nominal, percent }
 
 class PurchaseFormResult {
   final String? supplier;
+  final String? supplierInvoice;
   final List<PurchaseItemInput> items;
 
-  const PurchaseFormResult({this.supplier, required this.items});
+  const PurchaseFormResult({
+    this.supplier,
+    this.supplierInvoice,
+    required this.items,
+  });
 }
 
 /// Full page (pushed via GoRouter) for recording a new stock purchase —
@@ -56,6 +61,7 @@ class _PurchaseAddPageState extends State<PurchaseAddPage> {
   final _repository = PurchaseRepository();
   final _formKey = GlobalKey<FormState>();
   final _supplierController = TextEditingController();
+  final _supplierInvoiceController = TextEditingController();
   final _discountController = TextEditingController(text: "0");
   final List<_PurchaseItemRow> _rows = [_PurchaseItemRow()];
   final _today = DateTime.now();
@@ -76,6 +82,7 @@ class _PurchaseAddPageState extends State<PurchaseAddPage> {
   @override
   void dispose() {
     _supplierController.dispose();
+    _supplierInvoiceController.dispose();
     _discountController.dispose();
     for (final row in _rows) {
       row.dispose();
@@ -153,6 +160,9 @@ class _PurchaseAddPageState extends State<PurchaseAddPage> {
         supplier: _supplierController.text.trim().isEmpty
             ? null
             : _supplierController.text.trim(),
+        supplierInvoice: _supplierInvoiceController.text.trim().isEmpty
+            ? null
+            : _supplierInvoiceController.text.trim(),
         items: _buildDiscountedItems(validRows),
       ),
     );
@@ -373,42 +383,69 @@ class _PurchaseAddPageState extends State<PurchaseAddPage> {
   // ── Header: invoice / date / supplier ───────────────────────────────
 
   Widget _buildHeaderFields() {
-    return Row(
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Expanded(
-          child: _infoField(
-            label: "No. Invoice",
-            icon: Icons.receipt_long_outlined,
-            value: "Dibuat otomatis",
-          ),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          child: _infoField(
-            label: "Tanggal Transaksi",
-            icon: Icons.calendar_today_outlined,
-            value: formatFullDate(_today),
-          ),
-        ),
-        const SizedBox(width: 14),
-        Expanded(
-          flex: 2,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _label("Supplier (opsional)"),
-              const SizedBox(height: 8),
-              TextFormField(
-                controller: _supplierController,
-                style: AppText.body,
-                decoration: _inputDecoration(
-                  hint: "Mis. Toko Sembako Jaya",
-                  prefixIcon: Icons.storefront_outlined,
-                ),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: _infoField(
+                label: "No. Invoice",
+                icon: Icons.receipt_long_outlined,
+                value: "Dibuat otomatis",
               ),
-            ],
-          ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: _infoField(
+                label: "Tanggal Transaksi",
+                icon: Icons.calendar_today_outlined,
+                value: formatFullDate(_today),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 16),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _label("Supplier (opsional)"),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _supplierController,
+                    style: AppText.body,
+                    decoration: _inputDecoration(
+                      hint: "Mis. Toko Sembako Jaya",
+                      prefixIcon: Icons.storefront_outlined,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _label("No. Invoice Supplier (opsional)"),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _supplierInvoiceController,
+                    style: AppText.body,
+                    decoration: _inputDecoration(
+                      hint: "Mis. No. nota dari supplier",
+                      prefixIcon: Icons.description_outlined,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       ],
     );

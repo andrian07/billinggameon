@@ -61,6 +61,7 @@ class BillingRepository {
     DateTime? endTime,
     Duration? duration,
     bool? useSavedTime,
+    String? createdBy,
   }) async {
     final payload = <String, dynamic>{
       "table_id": tableId,
@@ -71,6 +72,7 @@ class BillingRepository {
       if (endTime != null) "table_end_time": formatApiDateTime(endTime),
       if (duration != null) "table_duration": formatDuration(duration),
       if (useSavedTime != null) "use_saved_time": useSavedTime ? "Y" : "N",
+      if (createdBy != null) "created_by": createdBy,
     };
 
     await _post(ApiEndpoints.bookTable, payload);

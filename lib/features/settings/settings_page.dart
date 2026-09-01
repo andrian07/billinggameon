@@ -115,7 +115,12 @@ class _SettingsPageState extends State<SettingsPage> {
     if (result == null) return;
 
     try {
-      await _repository.editPrice(id: item.id, price: result.price);
+      await _repository.editPrice(
+        id: item.id,
+        price: result.price,
+        price2: result.price2,
+        price3: result.price3,
+      );
       if (!mounted) return;
       AppToast.success(
         context,
@@ -124,7 +129,11 @@ class _SettingsPageState extends State<SettingsPage> {
       setState(() {
         final index = _prices.indexWhere((p) => p.id == item.id);
         if (index != -1) {
-          _prices[index] = item.copyWith(price: result.price);
+          _prices[index] = item.copyWith(
+            price: result.price,
+            price2: result.price2,
+            price3: result.price3,
+          );
         }
       });
     } on PriceRepositoryException catch (e) {
@@ -464,7 +473,13 @@ class _DaySection extends StatelessWidget {
       children: [
         SizedBox(width: 96, child: Text("JAM", style: style)),
         Expanded(
-          child: Text("HARGA", textAlign: TextAlign.end, style: style),
+          child: Text("HARGA 1", textAlign: TextAlign.end, style: style),
+        ),
+        Expanded(
+          child: Text("HARGA 2", textAlign: TextAlign.end, style: style),
+        ),
+        Expanded(
+          child: Text("HARGA 3", textAlign: TextAlign.end, style: style),
         ),
         const SizedBox(width: 44),
       ],
@@ -496,6 +511,20 @@ class _DaySection extends StatelessWidget {
           Expanded(
             child: Text(
               formatCurrency(item.price),
+              textAlign: TextAlign.end,
+              style: cellStyle,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              formatCurrency(item.price2),
+              textAlign: TextAlign.end,
+              style: cellStyle,
+            ),
+          ),
+          Expanded(
+            child: Text(
+              formatCurrency(item.price3),
               textAlign: TextAlign.end,
               style: cellStyle,
             ),

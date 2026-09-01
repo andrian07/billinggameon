@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/constants/app_sizes.dart';
 import '../../core/theme/app_colors.dart';
@@ -6,7 +7,10 @@ import '../../core/theme/app_text.dart';
 import '../../features/attendance/widgets/absensi_scan_dialog.dart';
 import '../../features/billing/data/billing_repository.dart';
 import '../../features/cashier/widgets/tutup_kas_dialog.dart';
+import '../../features/topup/widgets/topup_requests_dialog.dart';
+import '../../services/booking_watcher.dart';
 import '../../services/session_storage.dart';
+import '../../services/topup_watcher.dart';
 import 'app_toast.dart';
 
 class AppHeader extends StatefulWidget {
@@ -30,6 +34,7 @@ class AppHeader extends StatefulWidget {
 class _AppHeaderState extends State<AppHeader> {
   String _username = "";
   String _roleName = "";
+  bool _isOwner = false;
 
   @override
   void initState() {
@@ -39,10 +44,12 @@ class _AppHeaderState extends State<AppHeader> {
 
   Future<void> _loadSession() async {
     final session = await SessionStorage().getSession();
+    final isOwner = await SessionStorage().isSuperadmin();
     if (!mounted) return;
     setState(() {
       _username = session?['username']?.toString() ?? "";
       _roleName = session?['roleName']?.toString() ?? "";
+      _isOwner = isOwner;
     });
   }
 
@@ -117,20 +124,55 @@ class _AppHeaderState extends State<AppHeader> {
             ),
           ),
 
-          const SizedBox(width: 8),
-
-          OutlinedButton.icon(
-            onPressed: () => _openTutupKas(context),
-            icon: const Icon(Icons.summarize_rounded, size: 18),
-            label: const Text("Tutup Kas"),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.textSecondary,
-              side: const BorderSide(color: AppColors.border),
-              padding: const EdgeInsets.symmetric(horizontal: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
+          if (_isOwner) ...[
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              onPressed: () => _openTutupKas(context),
+              icon: const Icon(Icons.summarize_rounded, size: 18),
+              label: const Text("Tutup Kas"),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.textSecondary,
+                side: const BorderSide(color: AppColors.border),
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
+                ),
               ),
             ),
+          ],
+
+          const SizedBox(width: 8),
+
+          ValueListenableBuilder<int>(
+            valueListenable: TopupWatcher.instance.unreadCount,
+            builder: (context, count, _) {
+              return IconButton(
+                tooltip: "Permintaan Top Up",
+                onPressed: () => _openTopupRequests(context),
+                icon: Badge(
+                  isLabelVisible: count > 0,
+                  label: Text("$count"),
+                  child: const Icon(Icons.notifications_outlined),
+                ),
+              );
+            },
+          ),
+
+          const SizedBox(width: 8),
+
+          ValueListenableBuilder<int>(
+            valueListenable: BookingWatcher.instance.unreadCount,
+            builder: (context, count, _) {
+              return IconButton(
+                tooltip: "Booking Room",
+                onPressed: () => context.go('/booking'),
+                icon: Badge(
+                  isLabelVisible: count > 0,
+                  label: Text("$count"),
+                  child: const Icon(Icons.event_seat_outlined),
+                ),
+              );
+            },
           ),
 
           const SizedBox(width: 8),
@@ -170,6 +212,13 @@ class _AppHeaderState extends State<AppHeader> {
           ),
         ],
       ),
+    );
+  }
+
+  void _openTopupRequests(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (_) => const TopupRequestsDialog(),
     );
   }
 

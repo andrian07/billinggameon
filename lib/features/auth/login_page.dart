@@ -53,6 +53,7 @@ class _LoginPageState extends State<LoginPage> {
       final id = rawId is int ? rawId : int.tryParse(rawId?.toString() ?? "");
       final username = result['username']?.toString();
       final role = int.tryParse(result['userrole']?.toString() ?? "");
+      final branch = int.tryParse(result['user_branch']?.toString() ?? "");
 
       await _sessionStorage.saveSession({
         "id": id ?? 0,
@@ -61,6 +62,7 @@ class _LoginPageState extends State<LoginPage> {
             : _usernameController.text.trim(),
         "role": role,
         "roleName": await _resolveRoleName(role),
+        "branch": branch ?? 1,
       });
 
       await _loadAllowedMenuKeys(role);

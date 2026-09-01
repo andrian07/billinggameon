@@ -17,14 +17,20 @@ class CafePaymentResult {
   final int transactionCafeId;
   final String paymentMethodName;
   final int? table;
+  final int? customerId;
+  final String? customerName;
   final int tax;
+  final int discountPercent;
   final bool printKitchenTicket;
 
   const CafePaymentResult({
     required this.transactionCafeId,
     required this.paymentMethodName,
     this.table,
+    this.customerId,
+    this.customerName,
     this.tax = 0,
+    this.discountPercent = 0,
     this.printKitchenTicket = false,
   });
 }
@@ -36,11 +42,13 @@ class CafePaymentResult {
 class CafePaymentDialog extends StatefulWidget {
   final List<CartItem> items;
   final int subtotal;
+  final String? initialCustomerName;
 
   const CafePaymentDialog({
     super.key,
     required this.items,
     required this.subtotal,
+    this.initialCustomerName,
   });
 
   @override
@@ -54,14 +62,19 @@ class _CafePaymentDialogState extends State<CafePaymentDialog> {
   final _sessionStorage = SessionStorage();
 
   final _tableController = TextEditingController();
+  final _customerNameController = TextEditingController();
+  final _discountController = TextEditingController();
 
   bool _loadingOptions = true;
   String? _loadError;
-  List<Customer> _customers = [];
   List<PaymentMethod> _paymentMethods = [];
+  List<Customer> _customers = [];
 
-  Customer? _selectedCustomer;
   PaymentMethod? _selectedPaymentMethod;
+  /// Set only when the typed customer name exactly matches a registered
+  /// Customer — an unmatched/edited name is still sent as free text via
+  /// [_customerNameController], just without a linked [Customer.id].
+  int? _selectedCustomerId;
   bool _printKitchenTicket = false;
 
   bool _submitting = false;
@@ -70,14 +83,26 @@ class _CafePaymentDialogState extends State<CafePaymentDialog> {
   @override
   void initState() {
     super.initState();
+    _customerNameController.text = widget.initialCustomerName ?? '';
     _loadOptions();
   }
 
   @override
   void dispose() {
     _tableController.dispose();
+    _customerNameController.dispose();
+    _discountController.dispose();
     super.dispose();
   }
+
+  int get _discountPercent {
+    final value = int.tryParse(_discountController.text.trim()) ?? 0;
+    return value.clamp(0, 100);
+  }
+
+  int get _discountAmount => (widget.subtotal * _discountPercent / 100).round();
+
+  int get _totalAfterDiscount => widget.subtotal - _discountAmount;
 
   Future<void> _loadOptions() async {
     setState(() {
@@ -116,6 +141,13 @@ class _CafePaymentDialogState extends State<CafePaymentDialog> {
     }
   }
 
+  void _selectCustomer(Customer customer) {
+    setState(() {
+      _selectedCustomerId = customer.id;
+      _customerNameController.text = customer.name;
+    });
+  }
+
   Future<void> _submit() async {
     final paymentMethod = _selectedPaymentMethod;
     if (paymentMethod == null) return;
@@ -130,12 +162,22 @@ class _CafePaymentDialogState extends State<CafePaymentDialog> {
       final createdBy = session?['username']?.toString() ?? "";
       final paidBy = int.tryParse(session?['id']?.toString() ?? "") ?? 0;
       final table = int.tryParse(_tableController.text.trim());
+      final customerName = _customerNameController.text.trim();
+      final customerId =
+          _selectedCustomerId != null &&
+              _customers.any(
+                (c) => c.id == _selectedCustomerId && c.name == customerName,
+              )
+          ? _selectedCustomerId
+          : null;
 
       final transactionCafeId = await _cafeRepository.submitTransactionCafe(
-        customerId: _selectedCustomer?.id,
+        customerId: customerId,
         paymentId: paymentMethod.id,
         table: table,
+        customerName: customerName.isNotEmpty ? customerName : null,
         tax: 0,
+        discountPercent: _discountPercent.toDouble(),
         createdBy: createdBy,
         paidBy: paidBy,
         items: widget.items,
@@ -147,7 +189,10 @@ class _CafePaymentDialogState extends State<CafePaymentDialog> {
           transactionCafeId: transactionCafeId,
           paymentMethodName: paymentMethod.name,
           table: table,
+          customerId: customerId,
+          customerName: customerName.isNotEmpty ? customerName : null,
           tax: 0,
+          discountPercent: _discountPercent,
           printKitchenTicket: _printKitchenTicket,
         ),
       );
@@ -228,42 +273,6 @@ class _CafePaymentDialogState extends State<CafePaymentDialog> {
         _buildItemsList(),
 
         const SizedBox(height: 20),
-        _label("Customer (opsional)"),
-        const SizedBox(height: 8),
-        Autocomplete<Customer>(
-          displayStringForOption: (c) => c.name,
-          optionsBuilder: (textEditingValue) {
-            if (textEditingValue.text.isEmpty) return _customers;
-            final query = textEditingValue.text.toLowerCase();
-            return _customers.where(
-              (c) => c.name.toLowerCase().contains(query),
-            );
-          },
-          onSelected: (customer) =>
-              setState(() => _selectedCustomer = customer),
-          fieldViewBuilder: (context, controller, focusNode, onSubmit) {
-            return TextField(
-              controller: controller,
-              focusNode: focusNode,
-              style: AppText.body,
-              decoration: _inputDecoration(
-                hint: "Cari nama customer",
-                prefixIcon: Icons.person_outline_rounded,
-                loading: _loadingOptions,
-              ),
-              onChanged: (_) => setState(() => _selectedCustomer = null),
-            );
-          },
-          optionsViewBuilder: (context, onSelected, options) {
-            return _buildOptionsCard<Customer>(
-              options: options,
-              onSelected: onSelected,
-              labelOf: (customer) => customer.name,
-            );
-          },
-        ),
-
-        const SizedBox(height: 20),
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -318,6 +327,87 @@ class _CafePaymentDialogState extends State<CafePaymentDialog> {
                     onChanged: (value) {
                       if (value == null) return;
                       setState(() => _selectedPaymentMethod = value);
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+
+        const SizedBox(height: 16),
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _label("Diskon (%)"),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _discountController,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(3),
+                    ],
+                    style: AppText.body,
+                    decoration: _inputDecoration(
+                      hint: "0",
+                      prefixIcon: Icons.percent_rounded,
+                    ),
+                    onChanged: (_) => setState(() {}),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _label("Nama Customer (opsional)"),
+                  const SizedBox(height: 8),
+                  Autocomplete<Customer>(
+                    initialValue: TextEditingValue(
+                      text: _customerNameController.text,
+                    ),
+                    displayStringForOption: (customer) => customer.name,
+                    optionsBuilder: (textEditingValue) {
+                      if (textEditingValue.text.isEmpty) return _customers;
+                      final query = textEditingValue.text.toLowerCase();
+                      return _customers.where(
+                        (c) => c.name.toLowerCase().contains(query),
+                      );
+                    },
+                    onSelected: _selectCustomer,
+                    fieldViewBuilder: (context, controller, focusNode, onSubmit) {
+                      return TextField(
+                        controller: controller,
+                        focusNode: focusNode,
+                        style: AppText.body,
+                        decoration: _inputDecoration(
+                          hint: "Mis. Budi, atau cari member",
+                          prefixIcon: Icons.person_outline_rounded,
+                        ),
+                        // Keep the outer controller (used on submit and as
+                        // the held-transaction prefill) in sync with
+                        // whatever the field actually shows, free text
+                        // included.
+                        onChanged: (value) => setState(
+                          () => _customerNameController.text = value,
+                        ),
+                      );
+                    },
+                    optionsViewBuilder: (context, onSelected, options) {
+                      return _buildOptionsCard<Customer>(
+                        options: options,
+                        onSelected: onSelected,
+                        labelOf: (customer) => customer.name,
+                      );
                     },
                   ),
                 ],
@@ -467,6 +557,23 @@ class _CafePaymentDialogState extends State<CafePaymentDialog> {
           const SizedBox(height: 10),
           const Divider(color: AppColors.divider, height: 1),
           const SizedBox(height: 10),
+          _kv(
+            Icons.receipt_long_outlined,
+            "Subtotal",
+            formatCurrency(widget.subtotal),
+          ),
+          if (_discountPercent > 0) ...[
+            const SizedBox(height: 10),
+            _kv(
+              Icons.percent_rounded,
+              "Diskon ($_discountPercent%)",
+              "-${formatCurrency(_discountAmount)}",
+              valueColor: AppColors.danger,
+            ),
+          ],
+          const SizedBox(height: 10),
+          const Divider(color: AppColors.divider, height: 1),
+          const SizedBox(height: 10),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -476,7 +583,7 @@ class _CafePaymentDialogState extends State<CafePaymentDialog> {
                 style: AppText.body.copyWith(fontWeight: FontWeight.w700),
               ),
               Text(
-                formatCurrency(widget.subtotal),
+                formatCurrency(_totalAfterDiscount),
                 style: AppText.title.copyWith(
                   color: AppColors.success,
                   fontWeight: FontWeight.w800,
@@ -640,6 +747,13 @@ class _CafePaymentDialogState extends State<CafePaymentDialog> {
     );
   }
 
+  Widget _label(String text) {
+    return Text(
+      text,
+      style: AppText.bodySecondary.copyWith(fontWeight: FontWeight.w600),
+    );
+  }
+
   Widget _buildOptionsCard<T extends Object>({
     required Iterable<T> options,
     required void Function(T) onSelected,
@@ -679,13 +793,6 @@ class _CafePaymentDialogState extends State<CafePaymentDialog> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _label(String text) {
-    return Text(
-      text,
-      style: AppText.bodySecondary.copyWith(fontWeight: FontWeight.w600),
     );
   }
 

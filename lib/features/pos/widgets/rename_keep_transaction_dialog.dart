@@ -4,7 +4,7 @@ import '../../../core/constants/app_sizes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text.dart';
 
-/// Lets the cashier rename an already-held order (e.g. "Takeaway" once the
+/// Lets the cashier rename an already-held order (e.g. once the
 /// customer's actual name is known), separate from
 /// [KeepTransactionNameDialog] which only applies when *creating* a new
 /// hold — this one edits an existing one in place, no autocomplete/merge

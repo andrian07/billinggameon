@@ -45,6 +45,11 @@ class AppSidebar extends StatelessWidget {
           icon: Icons.receipt_long_rounded,
           menuKey: "transaksi",
         ),
+        AppMenuItem(
+          title: "Booking Room",
+          icon: Icons.event_seat_rounded,
+          menuKey: "booking",
+        ),
       ],
     ),
     SidebarSection(
@@ -86,6 +91,11 @@ class AppSidebar extends StatelessWidget {
           menuKey: "pembelian",
         ),
         AppMenuItem(
+          title: "Opname",
+          icon: Icons.fact_check_outlined,
+          menuKey: "opname",
+        ),
+        AppMenuItem(
           title: "Unit",
           icon: Icons.straighten_outlined,
           menuKey: "unit",
@@ -120,6 +130,11 @@ class AppSidebar extends StatelessWidget {
           icon: Icons.bar_chart_rounded,
           menuKey: "laporan_stok",
         ),
+        AppMenuItem(
+          title: "Laporan Pembelian",
+          icon: Icons.shopping_cart_outlined,
+          menuKey: "laporan_pembelian",
+        ),
       ],
     ),
     SidebarSection(
@@ -134,6 +149,11 @@ class AppSidebar extends StatelessWidget {
           title: "Table",
           icon: Icons.settings_input_component_rounded,
           menuKey: "setting_table",
+        ),
+        AppMenuItem(
+          title: "Ganti Password",
+          icon: Icons.lock_reset_rounded,
+          menuKey: "ganti_password",
         ),
         AppMenuItem(
           title: "Tukar Point",
@@ -160,7 +180,12 @@ class AppSidebar extends StatelessWidget {
           title: section.title,
           items: [
             for (final item in section.items)
-              if (allowed.contains(item.menuKey)) item,
+              // Ganti Password is a personal action every account needs
+              // regardless of role permissions, not something to gate
+              // behind the menu-access system — always shown, like Keluar.
+              if (item.menuKey == 'ganti_password' ||
+                  allowed.contains(item.menuKey))
+                item,
           ],
         ),
     ].where((section) => section.items.isNotEmpty).toList();

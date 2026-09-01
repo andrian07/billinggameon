@@ -5,7 +5,7 @@ import 'package:dio/dio.dart';
 import '../../../core/constants/api_endpoints.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../models/pool_table.dart';
-import '../../customer/data/customer_repository.dart';
+import '../../../models/promo.dart';
 import '../../promo/data/promo_repository.dart';
 
 class TableRepositoryException implements Exception {
@@ -27,7 +27,6 @@ class TableRepositoryException implements Exception {
 /// duration, running bill) before it's actually marked active.
 class TableRepository {
   final Dio _dio = Dio();
-  final _customerRepository = CustomerRepository();
   final _promoRepository = PromoRepository();
 
   Future<List<PoolTable>> getTables() async {
@@ -53,24 +52,14 @@ class TableRepository {
           .where((json) => json['is_active']?.toString() == "1")
           .toList();
 
-      final needsCustomerNames = rows.any(
-        (json) => json['table_customer_id'] != null,
-      );
-      final needsPromoNames = rows.any((json) {
+      final needsPromos = rows.any((json) {
         final promoId = int.tryParse(json['table_promo_id']?.toString() ?? "");
         return promoId != null && promoId != 0;
       });
 
-      final customerNames = needsCustomerNames
-          ? await _fetchCustomerNames()
-          : const <int, String>{};
-      final promoNames = needsPromoNames
-          ? await _fetchPromoNames()
-          : const <int, String>{};
+      final promos = needsPromos ? await _fetchPromos() : const <int, Promo>{};
 
-      return rows
-          .map((json) => _tableFromJson(json, customerNames, promoNames))
-          .toList();
+      return rows.map((json) => _tableFromJson(json, promos)).toList();
     } on TableRepositoryException {
       rethrow;
     } on DioException catch (_) {
@@ -80,22 +69,10 @@ class TableRepository {
     }
   }
 
-  Future<Map<int, String>> _fetchCustomerNames() async {
-    try {
-      final result = await _customerRepository.getCustomers(
-        page: 1,
-        perPage: 1000,
-      );
-      return {for (final c in result.customers) c.id: c.name};
-    } catch (_) {
-      return const {};
-    }
-  }
-
-  Future<Map<int, String>> _fetchPromoNames() async {
+  Future<Map<int, Promo>> _fetchPromos() async {
     try {
       final result = await _promoRepository.getPromos(page: 1, perPage: 1000);
-      return {for (final p in result.promos) p.id: p.name};
+      return {for (final p in result.promos) p.id: p};
     } catch (_) {
       return const {};
     }
@@ -103,8 +80,7 @@ class TableRepository {
 
   PoolTable _tableFromJson(
     Map<String, dynamic> json,
-    Map<int, String> customerNames,
-    Map<int, String> promoNames,
+    Map<int, Promo> promos,
   ) {
     final isRunning = json['table_active']?.toString() == "1";
     final number = json['table_number']?.toString() ?? "";
@@ -112,7 +88,11 @@ class TableRepository {
     final customerId = int.tryParse(
       json['table_customer_id']?.toString() ?? "",
     );
+    // nama member diambil dari snapshot yang disimpan billing_api saat buka meja
+    // (billing_api sendiri mengambilnya dari gameon/online) - lihat Billing::book_table
+    final memberName = json['table_customer_name']?.toString();
     final promoId = int.tryParse(json['table_promo_id']?.toString() ?? "");
+    final promo = (promoId != null && promoId != 0) ? promos[promoId] : null;
     final startAt = _parseDateTime(json['table_start_time']?.toString());
     final endAt = _parseDateTime(json['table_end_time']?.toString());
 
@@ -130,11 +110,12 @@ class TableRepository {
       plannedDuration: _parseDuration(json['table_duration']?.toString()),
       usedSavedTime: _parseYesNo(json['use_saved_time']?.toString()),
       customerId: (customerId != null && customerId != 0) ? customerId : null,
-      memberName: customerId != null ? customerNames[customerId] : null,
-      promoId: (promoId != null && promoId != 0) ? promoId : null,
-      promoName: (promoId != null && promoId != 0)
-          ? promoNames[promoId]
+      memberName: (memberName != null && memberName.trim().isNotEmpty)
+          ? memberName
           : null,
+      promoId: (promoId != null && promoId != 0) ? promoId : null,
+      promoName: promo?.name,
+      promoType: promo?.type,
       currentBill: int.tryParse(json['table_bill']?.toString() ?? ""),
     );
   }

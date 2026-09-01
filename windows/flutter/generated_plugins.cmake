@@ -3,6 +3,7 @@
 #
 
 list(APPEND FLUTTER_PLUGIN_LIST
+  local_notifier
   screen_retriever_windows
   unified_esc_pos_printer
   window_manager

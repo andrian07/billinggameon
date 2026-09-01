@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../../services/booking_watcher.dart';
 import '../../services/session_storage.dart';
 import '../../services/timer_expiry_watcher.dart';
+import '../../services/topup_watcher.dart';
 import 'app_header.dart';
 import 'app_sidebar.dart';
 
@@ -49,6 +51,8 @@ class _AppLayoutState extends State<AppLayout> {
     // so this just no-ops after the first page of the session starts it.
     // Runs until logout (see navigateToMenu), independent of page navigation.
     TimerExpiryWatcher.instance.start();
+    TopupWatcher.instance.start();
+    BookingWatcher.instance.start();
   }
 
   Future<void> _loadAllowedMenuKeys() async {

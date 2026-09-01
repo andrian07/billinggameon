@@ -36,19 +36,22 @@ class TableSettingRepository {
   }
 
   /// Only the fields passed in are updated — omitted ones keep their
-  /// current server-side value.
+  /// current server-side value. [categoryId] is category_meja_id (an int on
+  /// the backend) - see Billing_model::update_setting_table(), which treats
+  /// 0/empty as "not provided" rather than "clear it" (category_meja_id is
+  /// always >= 1), so there's currently no way to unassign a category here.
   Future<void> updateTableSetting({
     required int tableId,
     int? relay,
     String? number,
     int? point,
-    String? category,
+    int? categoryId,
   }) {
     final payload = <String, dynamic>{"table_id": tableId};
     if (relay != null) payload["table_relay"] = relay;
     if (number != null) payload["table_number"] = number;
     if (point != null) payload["table_point"] = point;
-    if (category != null) payload["table_category"] = category;
+    if (categoryId != null) payload["table_category"] = categoryId;
 
     return _post(ApiEndpoints.updateSettingTable, payload);
   }

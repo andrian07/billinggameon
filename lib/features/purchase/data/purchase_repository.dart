@@ -111,12 +111,15 @@ class PurchaseRepository {
 
   Future<int> addPurchase({
     String? supplier,
+    String? supplierInvoice,
     required String createdBy,
     required List<PurchaseItemInput> items,
   }) async {
     final data = await _post(ApiEndpoints.purchaseAdd, {
       if (supplier != null && supplier.trim().isNotEmpty)
         "supplier": supplier.trim(),
+      if (supplierInvoice != null && supplierInvoice.trim().isNotEmpty)
+        "supplier_invoice": supplierInvoice.trim(),
       "created_by": createdBy,
       "items": [
         for (final item in items)

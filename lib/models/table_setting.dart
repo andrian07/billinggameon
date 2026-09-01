@@ -5,14 +5,16 @@ class TableSetting {
   final int relay;
   final String number;
   final int point;
-  final String? category;
+  final int? categoryId;
+  final String? categoryName;
 
   const TableSetting({
     required this.id,
     required this.relay,
     required this.number,
     required this.point,
-    this.category,
+    this.categoryId,
+    this.categoryName,
   });
 
   factory TableSetting.fromJson(Map<String, dynamic> json) {
@@ -21,33 +23,41 @@ class TableSetting {
       return int.tryParse(value?.toString() ?? "") ?? 0;
     }
 
-    final category = json['table_category']?.toString();
+    final rawCategoryId = json['table_category_id'];
+    final categoryId = rawCategoryId == null
+        ? null
+        : (rawCategoryId is int
+              ? rawCategoryId
+              : int.tryParse(rawCategoryId.toString()));
 
     return TableSetting(
       id: asInt(json['table_id']),
       relay: asInt(json['table_relay']),
       number: json['table_number']?.toString() ?? "",
       point: asInt(json['table_point']),
-      category: (category == null || category.isEmpty) ? null : category,
+      categoryId: (categoryId != null && categoryId != 0) ? categoryId : null,
+      categoryName: json['table_category_name']?.toString(),
     );
   }
 
-  /// Unlike the other fields, [category] is genuinely optional (a table can
-  /// have none), so this always sets it to whatever is passed — including
-  /// null, to actually clear it — rather than falling back to the current
-  /// value like the other params do.
+  /// Unlike the other fields, [categoryId] is genuinely optional (a table
+  /// can have none), so this always sets it to whatever is passed —
+  /// including null, to actually clear it — rather than falling back to the
+  /// current value like the other params do.
   TableSetting copyWith({
     int? relay,
     String? number,
     int? point,
-    String? category,
+    int? categoryId,
+    String? categoryName,
   }) {
     return TableSetting(
       id: id,
       relay: relay ?? this.relay,
       number: number ?? this.number,
       point: point ?? this.point,
-      category: category,
+      categoryId: categoryId,
+      categoryName: categoryName,
     );
   }
 }

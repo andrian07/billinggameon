@@ -224,6 +224,15 @@ class _PurchaseDetailDialogState extends State<PurchaseDetailDialog> {
                 "Supplier",
                 detail.supplier ?? "-",
               ),
+              if (detail.supplierInvoice != null &&
+                  detail.supplierInvoice!.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                _kv(
+                  Icons.description_outlined,
+                  "No. Invoice Supplier",
+                  detail.supplierInvoice!,
+                ),
+              ],
               const SizedBox(height: 10),
               _kv(
                 Icons.person_outline_rounded,

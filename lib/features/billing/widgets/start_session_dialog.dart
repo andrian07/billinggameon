@@ -10,6 +10,7 @@ import '../../../models/customer.dart';
 import '../../../models/pool_table.dart';
 import '../../../models/promo.dart';
 import '../../../models/saved_customer_time.dart';
+import '../../../shared/widgets/app_toast.dart';
 import '../../customer/data/customer_repository.dart';
 import '../../promo/data/promo_repository.dart';
 import '../data/billing_repository.dart';
@@ -129,7 +130,25 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
       (_useSavedTime != true || _habiskanTimer == false) &&
       !_promoLocksDuration;
 
+  /// True when the selected promo has a valid-hour window — such promos can
+  /// only be used with mode Timer (see Billing_model::validate_promo_schedule
+  /// on the backend), since a Reguler session has no known end time up front
+  /// to check against the window.
+  bool get _promoRequiresTimer => _selectedPromo?.hasTimeWindow ?? false;
+
   void _selectPromo(Promo? promo) {
+    if (promo != null && promo.hasDayRestriction) {
+      final today = DateTime.now().weekday; // 1=Senin..7=Minggu, matches validDays
+      if (!promo.validDays!.contains(today)) {
+        final days = promo.validDays!.map((d) => weekdayLabels[d]).join(", ");
+        AppToast.error(
+          context,
+          "Promo \"${promo.name}\" hanya berlaku hari $days.",
+        );
+        return;
+      }
+    }
+
     final lockedHours = promo?.type == PromoType.fixed
         ? promo?.hourGained
         : null;
@@ -137,6 +156,10 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
     setState(() {
       final wasLocked = _promoLocksDuration;
       _selectedPromo = promo;
+
+      if (promo != null && promo.hasTimeWindow) {
+        _sessionType = SessionType.timer;
+      }
 
       if (lockedHours != null) {
         _sessionType = SessionType.timer;
@@ -249,6 +272,37 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
       return;
     }
 
+    final promo = _selectedPromo;
+    if (isTimer && promo != null && promo.hasTimeWindow) {
+      final now = DateTime.now();
+      final startHod = now.hour + now.minute / 60;
+      final elapsedHours = duration.inMinutes / 60;
+      // valid_time_start bisa lebih besar dari valid_time_end untuk jendela yang melewati
+      // tengah malam (mis. 22 s/d 4) - digeser relatif ke validTimeStart lalu dibungkus modulo
+      // 24 jam supaya jendela normal & lintas-tengah-malam bisa dicek dengan rumus yang sama.
+      // Sama persis dengan Billing_model::validate_promo_schedule() di backend.
+      final windowLength = (promo.validTimeEnd! - promo.validTimeStart! + 24) % 24;
+      final shiftedStart = (startHod - promo.validTimeStart! + 24) % 24;
+      final shiftedEnd = shiftedStart + elapsedHours;
+
+      if (shiftedStart > windowLength) {
+        setState(
+          () => _durationError =
+              "Promo ini hanya berlaku antara jam ${promo.validTimeStart}:00 - "
+              "${promo.validTimeEnd}:00",
+        );
+        return;
+      }
+      if (shiftedEnd > windowLength) {
+        setState(
+          () => _durationError =
+              "Durasi ini membuat sesi selesai lewat dari jam "
+              "${promo.validTimeEnd}:00 - batas berlaku promo ini",
+        );
+        return;
+      }
+    }
+
     Navigator.of(context).pop(
       StartSessionResult(
         sessionType: _sessionType,
@@ -347,6 +401,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
                   "Reguler",
                   "Bayar per jam",
                   Icons.schedule_rounded,
+                  enabled: !_promoRequiresTimer,
                 ),
               ),
               const SizedBox(width: 12),
@@ -496,6 +551,15 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
               style: AppText.caption,
             ),
           ],
+          if (_promoRequiresTimer) ...[
+            const SizedBox(height: 8),
+            Text(
+              "Promo ini hanya berlaku untuk mode Timer, dan sesi harus "
+              "selesai antara jam ${_selectedPromo!.validTimeStart}:00 - "
+              "${_selectedPromo!.validTimeEnd}:00.",
+              style: AppText.caption,
+            ),
+          ],
 
           const SizedBox(height: 28),
           Row(
@@ -603,43 +667,45 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
     SessionType type,
     String label,
     String subtitle,
-    IconData icon,
-  ) {
+    IconData icon, {
+    bool enabled = true,
+  }) {
     final active = _sessionType == type;
+    final effectiveColor = !enabled
+        ? AppColors.textHint
+        : (active ? AppColors.primary : AppColors.textSecondary);
 
     return InkWell(
-      onTap: () => setState(() {
-        _sessionType = type;
-        if (type == SessionType.reguler && _useSavedTime != null) {
-          _useSavedTime = null;
-          _habiskanTimer = null;
-          _durationHours = 0;
-          _durationMinutes = 0;
-          _hourController.text = "0";
-          _minuteController.text = "0";
-        }
-      }),
+      onTap: enabled
+          ? () => setState(() {
+              _sessionType = type;
+              if (type == SessionType.reguler && _useSavedTime != null) {
+                _useSavedTime = null;
+                _habiskanTimer = null;
+                _durationHours = 0;
+                _durationMinutes = 0;
+                _hourController.text = "0";
+                _minuteController.text = "0";
+              }
+            })
+          : null,
       borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
         decoration: BoxDecoration(
-          color: active
+          color: active && enabled
               ? AppColors.primary.withValues(alpha: .15)
               : AppColors.background,
           borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
           border: Border.all(
-            color: active ? AppColors.primary : AppColors.border,
-            width: active ? 1.5 : 1,
+            color: active && enabled ? AppColors.primary : AppColors.border,
+            width: active && enabled ? 1.5 : 1,
           ),
         ),
         child: Row(
           children: [
-            Icon(
-              icon,
-              size: 20,
-              color: active ? AppColors.primary : AppColors.textSecondary,
-            ),
+            Icon(icon, size: 20, color: effectiveColor),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
@@ -649,7 +715,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
                     label,
                     style: AppText.body.copyWith(
                       fontWeight: FontWeight.w600,
-                      color: active ? AppColors.primary : AppColors.text,
+                      color: effectiveColor,
                     ),
                   ),
                   Text(subtitle, style: AppText.caption),

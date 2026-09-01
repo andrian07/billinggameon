@@ -6,6 +6,7 @@ class ApiEndpoints {
   // Auth
   static const String login = "$baseUrl/Auth/login";
   static const String addAbsensi = "$baseUrl/Auth/add_absensi";
+  static const String changePassword = "$baseUrl/Auth/change_password";
 
   // Master user
   static const String userList = "$baseUrl/Master/user_list";
@@ -82,6 +83,8 @@ class ApiEndpoints {
   static const String addDuration = "$baseUrl/Billing/add_duration";
   static const String roundUpDuration = "$baseUrl/Billing/round_up_duration";
   static const String cancelTable = "$baseUrl/Billing/cancel_table";
+  static const String editPaymentTransaction =
+      "$baseUrl/Billing/edit_payment_transaction";
   static const String transactionList = "$baseUrl/Billing/transaction_list";
   static const String transactionDetail = "$baseUrl/Billing/transaction_detail";
   static const String settingTable = "$baseUrl/Billing/setting_table";
@@ -107,6 +110,19 @@ class ApiEndpoints {
   static const String transactionCafeDetail = "$baseUrl/Cafe/transaction_detail";
   static const String cancelTransactionCafe =
       "$baseUrl/Cafe/cancel_transaction_cafe";
+  static const String editPaymentTransactionCafe =
+      "$baseUrl/Cafe/edit_payment_transaction_cafe";
+
+  // Opname (stock opname - owner only, lihat Opname.php di backend)
+  static const String opnameProductList = "$baseUrl/Opname/product_list";
+  static const String opnameList = "$baseUrl/Opname/opname_list";
+  static const String opnameAdd = "$baseUrl/Opname/opname_add";
+
+  // PIN keamanan global (batal meja/cancel transaksi/hapus keep transaction) - lihat Pin.php
+  static const String pinStatus = "$baseUrl/Pin/status";
+  static const String pinSet = "$baseUrl/Pin/set_pin";
+  static const String pinSetActive = "$baseUrl/Pin/set_active";
+  static const String pinVerify = "$baseUrl/Pin/verify";
 
   // Setting
   static const String pointExchangeList = "$baseUrl/Setting/point_exchange";
@@ -134,6 +150,8 @@ class ApiEndpoints {
   static const String cafeReport = "$baseUrl/Report/cafe_report";
   static const String saldoReport = "$baseUrl/Report/saldo_report";
   static const String stockReport = "$baseUrl/Report/stock";
+  static const String purchaseReport = "$baseUrl/Report/purchase_report";
+  static const String purchaseSuppliers = "$baseUrl/Report/purchase_suppliers";
 
   // Access (roles & menu permissions)
   static const String roleListNoPaging =
@@ -143,4 +161,20 @@ class ApiEndpoints {
       "$baseUrl/Access/menu_list_no_pagging";
   static const String roleAccess = "$baseUrl/Access/role_access";
   static const String updateRoleAccess = "$baseUrl/Access/update_role_access";
+
+  // Top up requests (member self-service dari app gameon)
+  static const String pendingTopups = "$baseUrl/Master/pending_topups";
+  static const String approveTopup = "$baseUrl/Master/approve_topup";
+  static const String topupNotifications =
+      "$baseUrl/Master/topup_notifications";
+  static const String markTopupNotificationRead =
+      "$baseUrl/Master/mark_topup_notification_read";
+
+  // Booking room (member self-service dari app gameon). Saldo sudah dipotong di
+  // gameon waktu booking dibuat - billinggameon cuma menampilkan.
+  static const String bookings = "$baseUrl/Master/bookings";
+  static const String bookingNotifications =
+      "$baseUrl/Master/booking_notifications";
+  static const String markBookingNotificationRead =
+      "$baseUrl/Master/mark_booking_notification_read";
 }

@@ -7,18 +7,25 @@ import '../../../core/theme/app_text.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../core/utils/thousands_input_formatter.dart';
 import '../../../models/promo.dart';
+import '../../../shared/widgets/app_toast.dart';
 
 class PromoFormResult {
   final String name;
   final PromoType type;
   final int value;
   final int? hourGained;
+  final List<int>? validDays;
+  final int? validTimeStart;
+  final int? validTimeEnd;
 
   const PromoFormResult({
     required this.name,
     required this.type,
     required this.value,
     this.hourGained,
+    this.validDays,
+    this.validTimeStart,
+    this.validTimeEnd,
   });
 }
 
@@ -46,6 +53,11 @@ class _PromoFormDialogState extends State<PromoFormDialog> {
   );
   late PromoType _type = widget.promo?.type ?? PromoType.percentage;
 
+  late final Set<int> _selectedDays = {...?widget.promo?.validDays};
+  late bool _useTimeWindow = widget.promo?.hasTimeWindow ?? false;
+  late int? _timeStart = widget.promo?.validTimeStart;
+  late int? _timeEnd = widget.promo?.validTimeEnd;
+
   bool get _isEdit => widget.promo != null;
 
   @override
@@ -59,6 +71,18 @@ class _PromoFormDialogState extends State<PromoFormDialog> {
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
 
+    if (_useTimeWindow && (_timeStart == null || _timeEnd == null)) {
+      AppToast.error(context, "Pilih jam mulai dan jam selesai berlaku promo");
+      return;
+    }
+    // Jam mulai boleh lebih besar dari jam selesai - itu artinya jendela melewati tengah
+    // malam (mis. 22 s/d 4 = berlaku jam 22:00 malam - 04:00 keesokan paginya). Hanya sama
+    // persis (durasi nol) yang ditolak.
+    if (_useTimeWindow && _timeStart == _timeEnd) {
+      AppToast.error(context, "Jam mulai tidak boleh sama dengan jam selesai");
+      return;
+    }
+
     Navigator.of(context).pop(
       PromoFormResult(
         name: _nameController.text.trim(),
@@ -67,6 +91,9 @@ class _PromoFormDialogState extends State<PromoFormDialog> {
         hourGained: _type == PromoType.fixed
             ? int.tryParse(_hourController.text.trim())
             : null,
+        validDays: _selectedDays.isNotEmpty ? _selectedDays.toList() : null,
+        validTimeStart: _useTimeWindow ? _timeStart : null,
+        validTimeEnd: _useTimeWindow ? _timeEnd : null,
       ),
     );
   }
@@ -178,6 +205,44 @@ class _PromoFormDialogState extends State<PromoFormDialog> {
                   ),
                 ],
 
+                const SizedBox(height: 20),
+                _label("Hari Berlaku (kosongkan = semua hari)"),
+                const SizedBox(height: 8),
+                _buildDaySelector(),
+
+                const SizedBox(height: 20),
+                _buildTimeWindowToggle(),
+                if (_useTimeWindow) ...[
+                  const SizedBox(height: 12),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _buildHourDropdown(
+                          label: "Dari Jam",
+                          value: _timeStart,
+                          onChanged: (v) => setState(() => _timeStart = v),
+                          maxHour: 23,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: _buildHourDropdown(
+                          label: "Sampai Jam",
+                          value: _timeEnd,
+                          onChanged: (v) => setState(() => _timeEnd = v),
+                          maxHour: 24,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    "Promo ini hanya bisa dipakai untuk mode Timer, dan sesi "
+                    "harus selesai sebelum jam yang dipilih di atas.",
+                    style: AppText.caption,
+                  ),
+                ],
+
                 const SizedBox(height: 28),
                 Row(
                   children: [
@@ -269,6 +334,116 @@ class _PromoFormDialogState extends State<PromoFormDialog> {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildDaySelector() {
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final entry in weekdayLabels.entries)
+          _dayChip(day: entry.key, label: entry.value),
+      ],
+    );
+  }
+
+  Widget _dayChip({required int day, required String label}) {
+    final active = _selectedDays.contains(day);
+
+    return InkWell(
+      borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
+      onTap: () => setState(() {
+        if (active) {
+          _selectedDays.remove(day);
+        } else {
+          _selectedDays.add(day);
+        }
+      }),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: active
+              ? AppColors.primary.withValues(alpha: .15)
+              : AppColors.background,
+          borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
+          border: Border.all(
+            color: active ? AppColors.primary : AppColors.border,
+          ),
+        ),
+        child: Text(
+          label,
+          style: AppText.body.copyWith(
+            fontWeight: FontWeight.w600,
+            color: active ? AppColors.primary : AppColors.textSecondary,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTimeWindowToggle() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: SwitchListTile(
+        contentPadding: EdgeInsets.zero,
+        title: Text(
+          "Batasi Jam Berlaku",
+          style: AppText.body.copyWith(fontWeight: FontWeight.w600),
+        ),
+        subtitle: Text(
+          "Promo hanya bisa dipakai di antara jam tertentu",
+          style: AppText.caption,
+        ),
+        value: _useTimeWindow,
+        activeThumbColor: AppColors.primary,
+        onChanged: (v) => setState(() {
+          _useTimeWindow = v;
+          if (!v) {
+            _timeStart = null;
+            _timeEnd = null;
+          }
+        }),
+      ),
+    );
+  }
+
+  Widget _buildHourDropdown({
+    required String label,
+    required int? value,
+    required ValueChanged<int?> onChanged,
+    required int maxHour,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _label(label),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<int>(
+          initialValue: value,
+          dropdownColor: AppColors.card,
+          style: AppText.body,
+          isExpanded: true,
+          icon: const Icon(
+            Icons.keyboard_arrow_down_rounded,
+            color: AppColors.textSecondary,
+          ),
+          decoration: _inputDecoration(hint: "Pilih jam"),
+          items: [
+            for (var h = 0; h <= maxHour; h++)
+              DropdownMenuItem(
+                value: h,
+                child: Text("${h.toString().padLeft(2, '0')}:00"),
+              ),
+          ],
+          onChanged: onChanged,
+        ),
+      ],
     );
   }
 

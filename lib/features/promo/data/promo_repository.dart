@@ -71,12 +71,19 @@ class PromoRepository {
     required PromoType type,
     required int value,
     int? hourGained,
+    List<int>? validDays,
+    int? validTimeStart,
+    int? validTimeEnd,
   }) {
     return _post(ApiEndpoints.addPromo, {
       "ms_promo_name": name,
       "ms_promo_tipe": type.apiValue,
       "ms_promo_value": "$value",
       if (hourGained != null) "hour": "$hourGained",
+      if (validDays != null && validDays.isNotEmpty)
+        "valid_days": validDays.join(","),
+      if (validTimeStart != null) "valid_time_start": "$validTimeStart",
+      if (validTimeEnd != null) "valid_time_end": "$validTimeEnd",
     });
   }
 
@@ -86,6 +93,9 @@ class PromoRepository {
     required PromoType type,
     required int value,
     int? hourGained,
+    List<int>? validDays,
+    int? validTimeStart,
+    int? validTimeEnd,
   }) {
     return _post(ApiEndpoints.editPromo, {
       "ms_promo_id": "$id",
@@ -93,6 +103,11 @@ class PromoRepository {
       "ms_promo_tipe": type.apiValue,
       "ms_promo_value": "$value",
       "hour": hourGained != null ? "$hourGained" : "",
+      "valid_days": (validDays != null && validDays.isNotEmpty)
+          ? validDays.join(",")
+          : "",
+      "valid_time_start": validTimeStart != null ? "$validTimeStart" : "",
+      "valid_time_end": validTimeEnd != null ? "$validTimeEnd" : "",
     });
   }
 

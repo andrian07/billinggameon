@@ -5,6 +5,7 @@ class Customer {
   final String phone;
   final String? address;
   final String? email;
+  final int saldo;
   final int point;
   final String status;
 
@@ -15,12 +16,14 @@ class Customer {
     required this.phone,
     this.address,
     this.email,
+    required this.saldo,
     required this.point,
     required this.status,
   });
 
   factory Customer.fromJson(Map<String, dynamic> json) {
     final rawId = json['id'];
+    final rawSaldo = json['saldo'];
     final rawPoint = json['point'];
 
     return Customer(
@@ -30,6 +33,7 @@ class Customer {
       phone: json['phone']?.toString() ?? "",
       address: json['address']?.toString(),
       email: json['email']?.toString(),
+      saldo: rawSaldo is int ? rawSaldo : int.tryParse(rawSaldo.toString()) ?? 0,
       point: rawPoint is int ? rawPoint : int.tryParse(rawPoint.toString()) ?? 0,
       status: json['verification']?.toString() ?? "",
     );

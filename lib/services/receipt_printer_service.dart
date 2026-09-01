@@ -162,6 +162,13 @@ class ReceiptPrinterService {
 
     if (receipt.table != null) {
       TicketLayout.row(ticket, "Meja", receipt.table!);
+    } else {
+      final name = receipt.customerName?.trim();
+      TicketLayout.row(
+        ticket,
+        "Customer",
+        (name != null && name.isNotEmpty) ? name : "-",
+      );
     }
 
     ticket.feed(1);
@@ -173,12 +180,26 @@ class ReceiptPrinterService {
       TicketLayout.row(
         ticket,
         "  ${item.quantity} x ${formatCurrency(item.price)}",
-        formatCurrency(item.lineTotal),
+        formatCurrency(item.price * item.quantity),
       );
+      for (final addon in item.addons) {
+        TicketLayout.row(
+          ticket,
+          "  + ${addon.name} x${addon.quantity}",
+          formatCurrency(addon.lineTotal),
+        );
+      }
     }
 
     ticket.separator(char: '-', linesAfter: 1);
     TicketLayout.row(ticket, "Subtotal", formatCurrency(receipt.subtotal));
+    if (receipt.discountAmount > 0) {
+      TicketLayout.row(
+        ticket,
+        "Diskon (${receipt.discountPercent}%)",
+        "-${formatCurrency(receipt.discountAmount)}",
+      );
+    }
     if (receipt.tax > 0) {
       TicketLayout.row(ticket, "Pajak", formatCurrency(receipt.tax));
     }
@@ -231,22 +252,28 @@ class ReceiptPrinterService {
     );
     ticket.separator(char: '=', linesAfter: 1);
 
+    final name = customerName?.trim();
+    TicketLayout.row(
+      ticket,
+      "Customer",
+      (name != null && name.isNotEmpty) ? name : "-",
+    );
     TicketLayout.row(ticket, "Kode", keepCode);
-    if (customerName != null) {
-      TicketLayout.row(ticket, "Customer", customerName);
-    }
     ticket.text("${formatFullDate(now)}  ${formatClock(now)}");
     ticket.separator(char: '=', linesAfter: 1);
 
     for (final item in items) {
       ticket.text(
-        item.product.name,
+        "${item.quantity} x ${item.product.name}",
         style: const PrintTextStyle(bold: true),
       );
-      if (item.note != null) {
-        ticket.text("  Ket: ${item.note}");
+      final note = item.note?.trim();
+      if (note != null && note.isNotEmpty) {
+        ticket.text("  ($note)");
       }
-      TicketLayout.row(ticket, "Qty", "${item.quantity}");
+      for (final addon in item.addons) {
+        ticket.text("  + ${addon.quantity} x ${addon.product.name}");
+      }
       ticket.feed(1);
     }
 

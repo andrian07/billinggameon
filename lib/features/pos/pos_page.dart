@@ -5,6 +5,7 @@ import '../../core/navigation/app_navigation.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text.dart';
 import '../../core/utils/formatters.dart';
+import '../../models/cart_addon.dart';
 import '../../models/cart_item.dart';
 import '../../models/keep_transaction.dart';
 import '../../models/product.dart';
@@ -18,6 +19,7 @@ import '../product/data/product_repository.dart';
 import 'data/cafe_invoice_repository.dart';
 import 'data/cafe_repository.dart';
 import 'widgets/cafe_payment_dialog.dart';
+import 'widgets/cart_item_addon_dialog.dart';
 import 'widgets/cart_item_note_dialog.dart';
 import 'widgets/keep_transaction_list_dialog.dart';
 import 'widgets/keep_transaction_name_dialog.dart';
@@ -58,7 +60,11 @@ class _PosPageState extends State<PosPage> {
   /// that same record instead of creating a duplicate. Cleared whenever the
   /// cart is cleared/checked out.
   int? _activeKeepTransactionId;
-  Map<int, int> _keepBaseline = {};
+  String? _activeKeepTransactionName;
+  /// Snapshot (qty/note/addons) of each item as it was last persisted to the
+  /// held transaction, so [_pendingKeepItems] can tell whether an item needs
+  /// resending because ANYTHING changed — not just its quantity going up.
+  Map<int, CartItem> _keepBaseline = {};
 
   @override
   void initState() {
@@ -162,28 +168,59 @@ class _PosPageState extends State<PosPage> {
     setState(() => _cart[item.product.id] = item.withNote(result));
   }
 
+  Future<void> _editItemAddons(CartItem item) async {
+    final result = await showDialog<List<CartAddon>>(
+      context: context,
+      builder: (_) => CartItemAddonDialog(item: item, products: _products),
+    );
+    if (result == null) return;
+
+    setState(() => _cart[item.product.id] = item.withAddons(result));
+  }
+
   void _clearCart() {
     setState(() {
       _cart.clear();
       _activeKeepTransactionId = null;
+      _activeKeepTransactionName = null;
       _keepBaseline = {};
     });
   }
 
-  /// Items still needing to be persisted for the active held transaction —
-  /// just the current cart when there's none yet, otherwise only the extra
-  /// quantity added on top of what the server already has, since a repeat
-  /// keep-transaction call *adds* items rather than replacing them.
+  /// Items still needing to be persisted for the active held transaction.
+  /// Quantity is sent as only the extra amount added on top of what the
+  /// server already has (a repeat keep-transaction call *adds* to existing
+  /// quantity rather than replacing it) — but an item is still included with
+  /// quantity 0 when only its note or additional items changed, since those
+  /// DO fully replace what the server has and would otherwise silently never
+  /// reach it if the base quantity didn't also change.
   List<CartItem> get _pendingKeepItems {
     if (_activeKeepTransactionId == null) return _cartItems;
 
     final result = <CartItem>[];
     for (final item in _cartItems) {
-      final baseline = _keepBaseline[item.product.id] ?? 0;
-      final delta = item.quantity - baseline;
-      if (delta > 0) result.add(item.copyWith(quantity: delta));
+      final baseline = _keepBaseline[item.product.id];
+      final delta = item.quantity - (baseline?.quantity ?? 0);
+      final noteChanged = item.note != baseline?.note;
+      final addonsChanged = !_addonsMatch(
+        item.addons,
+        baseline?.addons ?? const [],
+      );
+
+      if (delta > 0 || noteChanged || addonsChanged) {
+        result.add(item.copyWith(quantity: delta > 0 ? delta : 0));
+      }
     }
     return result;
+  }
+
+  bool _addonsMatch(List<CartAddon> a, List<CartAddon> b) {
+    if (a.length != b.length) return false;
+    final aByProduct = {for (final addon in a) addon.product.id: addon.quantity};
+    for (final addon in b) {
+      if (aByProduct[addon.product.id] != addon.quantity) return false;
+    }
+    return true;
   }
 
   Future<void> _checkout() async {
@@ -193,7 +230,11 @@ class _PosPageState extends State<PosPage> {
 
     final result = await showDialog<CafePaymentResult>(
       context: context,
-      builder: (_) => CafePaymentDialog(items: items, subtotal: subtotal),
+      builder: (_) => CafePaymentDialog(
+        items: items,
+        subtotal: subtotal,
+        initialCustomerName: _activeKeepTransactionName,
+      ),
     );
     if (result == null) return;
     if (!mounted) return;
@@ -201,6 +242,7 @@ class _PosPageState extends State<PosPage> {
     setState(() {
       _cart.clear();
       _activeKeepTransactionId = null;
+      _activeKeepTransactionName = null;
       _keepBaseline = {};
     });
     AppToast.success(
@@ -237,6 +279,7 @@ class _PosPageState extends State<PosPage> {
         try {
           await _receiptPrinter.printKitchenOrder(
             keepCode: receipt.invoiceNumber,
+            customerName: result.customerName,
             items: items,
           );
         } catch (e) {
@@ -380,10 +423,31 @@ class _PosPageState extends State<PosPage> {
           product: product,
           quantity: item.quantity,
           note: item.note,
+          addons: [
+            for (final addon in item.addons)
+              CartAddon(
+                product: _products.firstWhere(
+                  (p) => p.id == addon.productId,
+                  orElse: () => Product(
+                    id: addon.productId,
+                    code: "",
+                    name: addon.productName,
+                    price: addon.productPrice,
+                    cogs: 0,
+                    stock: 0,
+                    reduceStock: false,
+                    image: "",
+                    imageUrl: "",
+                  ),
+                ),
+                quantity: addon.quantity,
+              ),
+          ],
         );
-        _keepBaseline[item.productId] = item.quantity;
+        _keepBaseline[item.productId] = _cart[item.productId]!;
       }
       _activeKeepTransactionId = detail.id;
+      _activeKeepTransactionName = detail.name;
     });
 
     if (!mounted) return;
@@ -704,6 +768,7 @@ class _PosPageState extends State<PosPage> {
                         onDecrement: () => _decrementQty(item.product.id),
                         onRemove: () => _removeFromCart(item.product.id),
                         onEditNote: () => _editItemNote(item),
+                        onEditAddons: () => _editItemAddons(item),
                       );
                     },
                   ),
@@ -890,6 +955,7 @@ class _CartRow extends StatelessWidget {
   final VoidCallback onDecrement;
   final VoidCallback onRemove;
   final VoidCallback onEditNote;
+  final VoidCallback onEditAddons;
 
   const _CartRow({
     required this.item,
@@ -897,11 +963,13 @@ class _CartRow extends StatelessWidget {
     required this.onDecrement,
     required this.onRemove,
     required this.onEditNote,
+    required this.onEditAddons,
   });
 
   @override
   Widget build(BuildContext context) {
     final hasNote = item.note != null;
+    final hasAddons = item.addons.isNotEmpty;
 
     return Container(
       padding: const EdgeInsets.all(10),
@@ -924,6 +992,25 @@ class _CartRow extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: AppText.body.copyWith(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+              Tooltip(
+                message: hasAddons ? "Edit item tambahan" : "Tambah item tambahan",
+                child: InkWell(
+                  onTap: onEditAddons,
+                  borderRadius: BorderRadius.circular(6),
+                  child: Padding(
+                    padding: const EdgeInsets.all(2),
+                    child: Icon(
+                      hasAddons
+                          ? Icons.add_box_rounded
+                          : Icons.add_box_outlined,
+                      size: 16,
+                      color: hasAddons
+                          ? AppColors.primary
+                          : AppColors.textSecondary,
+                    ),
                   ),
                 ),
               ),
@@ -984,6 +1071,43 @@ class _CartRow extends StatelessWidget {
                       ),
                     ),
                   ),
+                ],
+              ),
+            ),
+          ],
+          if (hasAddons) ...[
+            const SizedBox(height: 4),
+            InkWell(
+              onTap: onEditAddons,
+              borderRadius: BorderRadius.circular(6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final addon in item.addons)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Row(
+                        children: [
+                          const Icon(
+                            Icons.add_rounded,
+                            size: 13,
+                            color: AppColors.textHint,
+                          ),
+                          Expanded(
+                            child: Text(
+                              "${addon.product.name} x${addon.quantity}",
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: AppText.caption,
+                            ),
+                          ),
+                          Text(
+                            formatCurrency(addon.lineTotal),
+                            style: AppText.caption,
+                          ),
+                        ],
+                      ),
+                    ),
                 ],
               ),
             ),

@@ -9,6 +9,7 @@ import '../../../models/payment_method.dart';
 import '../../../models/pool_table.dart';
 import '../../../models/promo.dart';
 import '../../../services/session_storage.dart';
+import '../../../shared/widgets/app_toast.dart';
 import '../../customer/data/customer_repository.dart';
 import '../../payment/data/payment_method_repository.dart';
 import '../../promo/data/promo_repository.dart';
@@ -219,7 +220,78 @@ class _PaymentDialogState extends State<PaymentDialog> {
     }
   }
 
+  /// Promos with an hour limit (Fix-type "package" promos, e.g. "Promo 2
+  /// Jam") can't be applied once the table has actually been running longer
+  /// than that — running *less* than the limit is fine (a 2-hour package
+  /// picked after 1.5 hours of play is a normal case). Mirrors the backend
+  /// guard in `Billing_model::calculate_price()`, which is what actually
+  /// enforces this at payment time — this is just the immediate UI notice.
   void _selectPromo(Promo? promo) {
+    if (promo != null && promo.hourGained != null) {
+      final startAt = widget.table.startAt;
+      final elapsedHours = startAt != null
+          ? DateTime.now().difference(startAt).inSeconds / 3600
+          : 0.0;
+      if (elapsedHours > promo.hourGained!) {
+        AppToast.error(
+          context,
+          "Promo \"${promo.name}\" hanya berlaku maksimal ${promo.hourGained} jam "
+          "(waktu main sudah berjalan ${elapsedHours.toStringAsFixed(1)} jam).",
+        );
+        setState(() {}); // snap the dropdown back to the still-selected promo
+        return;
+      }
+    }
+
+    if (promo != null && promo.hasDayRestriction) {
+      final today = DateTime.now().weekday; // 1=Senin..7=Minggu
+      if (!promo.validDays!.contains(today)) {
+        final days = promo.validDays!.map((d) => weekdayLabels[d]).join(", ");
+        AppToast.error(context, "Promo \"${promo.name}\" hanya berlaku hari $days.");
+        setState(() {});
+        return;
+      }
+    }
+
+    if (promo != null && promo.hasTimeWindow) {
+      if (widget.table.sessionType != SessionType.timer) {
+        AppToast.error(
+          context,
+          "Promo \"${promo.name}\" hanya berlaku untuk mode Timer.",
+        );
+        setState(() {});
+        return;
+      }
+
+      final startAt = widget.table.startAt;
+      final now = DateTime.now();
+      final startHod = startAt != null
+          ? startAt.hour + startAt.minute / 60
+          : now.hour + now.minute / 60;
+      // endHod dihitung sebagai startHod + waktu main yang sudah berjalan (bukan hour-of-day dari
+      // "now" secara terpisah) - supaya sesi yang melewati tengah malam tidak "membungkus" ke jam
+      // kecil dan lolos dari pengecekan batas atas jendela promo (sama seperti bug yang diperbaiki
+      // di Billing_model::validate_promo_schedule() pada backend).
+      final endHod = startAt != null
+          ? startHod + now.difference(startAt).inSeconds / 3600
+          : now.hour + now.minute / 60;
+      // valid_time_start bisa lebih besar dari valid_time_end untuk jendela yang melewati tengah
+      // malam (mis. 22 s/d 4) - digeser relatif ke validTimeStart lalu dibungkus modulo 24 jam,
+      // sama persis dengan Billing_model::validate_promo_schedule() di backend.
+      final windowLength = (promo.validTimeEnd! - promo.validTimeStart! + 24) % 24;
+      final shiftedStart = (startHod - promo.validTimeStart! + 24) % 24;
+      final shiftedEnd = shiftedStart + (endHod - startHod);
+      if (shiftedStart > windowLength || shiftedEnd > windowLength) {
+        AppToast.error(
+          context,
+          "Promo \"${promo.name}\" hanya berlaku antara jam "
+          "${promo.validTimeStart}:00 - ${promo.validTimeEnd}:00.",
+        );
+        setState(() {});
+        return;
+      }
+    }
+
     setState(() {
       _selectedPromo = promo;
 
@@ -531,6 +603,7 @@ class _PaymentDialogState extends State<PaymentDialog> {
             : _promoLoadError != null
             ? _buildInlineError(_promoLoadError!, onRetry: _loadPromos)
             : DropdownButtonFormField<Promo?>(
+                key: ValueKey(_selectedPromo?.id ?? 0),
                 initialValue: _selectedPromo,
                 dropdownColor: AppColors.card,
                 style: AppText.body,

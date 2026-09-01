@@ -14,6 +14,7 @@ class CafeInvoiceRepository {
     required String cashierName,
   }) {
     final now = DateTime.now();
+    final discountAmount = (subtotal * payment.discountPercent / 100).round();
 
     return Future.value(
       CafeReceipt(
@@ -21,7 +22,8 @@ class CafeInvoiceRepository {
         businessAddress: BusinessInfo.address,
         invoiceNumber: _buildInvoiceNumber(now, payment.transactionCafeId),
         date: now,
-        table: payment.table != null ? "Meja ${payment.table}" : "Takeaway",
+        table: payment.table != null ? "Meja ${payment.table}" : null,
+        customerName: payment.customerName,
         items: [
           for (final item in items)
             CafeReceiptItem(
@@ -29,11 +31,21 @@ class CafeInvoiceRepository {
               quantity: item.quantity,
               price: item.product.price,
               note: item.note,
+              addons: [
+                for (final addon in item.addons)
+                  CafeReceiptAddon(
+                    name: addon.product.name,
+                    quantity: addon.quantity,
+                    price: addon.product.price,
+                  ),
+              ],
             ),
         ],
         subtotal: subtotal,
+        discountPercent: payment.discountPercent,
+        discountAmount: discountAmount,
         tax: payment.tax,
-        total: subtotal + payment.tax,
+        total: subtotal - discountAmount + payment.tax,
         paymentMethod: payment.paymentMethodName,
         cashierName: cashierName,
       ),
