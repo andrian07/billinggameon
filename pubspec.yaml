@@ -2,7 +2,7 @@ name: billiard_billing
 description: Billing System for Billiard
 publish_to: "none"
 
-version: 1.11.1+23
+version: 1.11.2+24
 
 environment:
   sdk: ">=3.12.0 <4.0.0"
@@ -51,7 +51,7 @@ flutter:
     - assets/icons/
 
 flutter_launcher_icons:
-  image_path: "assets/icons/logo.png"
+  image_path: "assets/icons/Logoicon.png"
   android: true
   ios: true
   remove_alpha_ios: true

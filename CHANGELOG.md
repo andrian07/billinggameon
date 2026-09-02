@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.11.2 — 2026-09-02
+
+- Ikon aplikasi diganti memakai `assets/icons/Logoicon.png` (1254×1254, resolusi lebih
+  tinggi dari `logo.png`), di-generate ulang untuk semua platform.
+
 ## v1.11.1 — 2026-09-02
 
 - Ikon aplikasi (semua platform: Android, iOS, macOS, Windows, Web) diganti memakai
