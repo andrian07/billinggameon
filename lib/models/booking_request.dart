@@ -41,6 +41,21 @@ class BookingRequest {
     return "$categoryName · No.$unitNo ($areaLabel)";
   }
 
+  /// Scheduled start, parsed from [bookingDate] + [bookingTime] ("2026-09-01"
+  /// + "15:00:00") - used to sort by soonest-to-play and to open the table
+  /// with the exact slot the member booked (see BookingPage's "Buka Meja").
+  DateTime? get startAt => DateTime.tryParse("$bookingDate $bookingTime");
+
+  /// Seluruh slot yang dipesan (jam mulai + durasi) sudah lewat dari sekarang -
+  /// member tidak datang, meja tidak lagi bisa dibukakan untuk slot itu. Baris
+  /// seperti ini ditampilkan redup di halaman Booking dan tidak ikut dihitung
+  /// di badge notifikasi (belum di-acc TAPI sudah tidak bisa ditindaklanjuti).
+  bool get isExpired {
+    final start = startAt;
+    if (start == null) return false;
+    return start.add(Duration(hours: durationHours)).isBefore(DateTime.now());
+  }
+
   factory BookingRequest.fromJson(Map<String, dynamic> json) {
     int asInt(dynamic v) => v is int ? v : int.tryParse(v.toString()) ?? 0;
 

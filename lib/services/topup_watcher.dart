@@ -28,6 +28,11 @@ class TopupWatcher {
   bool _checking = false;
   bool _notifierReady = false;
 
+  /// topup_notification_id yang sudah pernah memunculkan notifikasi OS di sesi
+  /// ini - supaya 1 permintaan hanya "ding" sekali, bukan tiap poll selama
+  /// masih belum dibaca. Di-reset saat logout ([stop]).
+  final Set<int> _notifiedIds = <int>{};
+
   final _unreadCount = ValueNotifier<int>(0);
   ValueListenable<int> get unreadCount => _unreadCount;
 
@@ -41,6 +46,7 @@ class TopupWatcher {
     _timer?.cancel();
     _timer = null;
     _unreadCount.value = 0;
+    _notifiedIds.clear();
   }
 
   /// Re-checks immediately instead of waiting for the next scheduled tick -
@@ -54,17 +60,30 @@ class TopupWatcher {
     _checking = true;
 
     try {
-      // pending_topups() also does the customer auto-sync + notification
-      // logging server-side (see Master::pending_topups() in billing_api) -
-      // this call is what makes both of those actually happen, the
-      // notification list read below just reflects what it already logged.
-      await _repository.getPendingTopups();
+      // getPendingTopups() = permintaan top up yang MASIH menunggu di-approve
+      // (hilang begitu kasir approve). Sekalian memicu customer auto-sync +
+      // logging notifikasi di server. Proxy ke gameon, jadi bisa gagal sendiri.
+      List<TopupRequest>? pending;
+      try {
+        pending = await _repository.getPendingTopups();
+      } catch (_) {
+        // sync hiccup - biarkan badge apa adanya, coba lagi tick berikutnya
+      }
 
+      if (pending != null) {
+        // badge = jumlah permintaan yang belum di-approve
+        _unreadCount.value = pending.length;
+      }
+
+      // Notifikasi OS: sekali per permintaan baru yang belum dibaca sesi ini.
       final unread = await _repository.getNotifications(unreadOnly: true);
-      _unreadCount.value = unread.length;
+      final stillUnread = unread.map((i) => i.id).toSet();
+      _notifiedIds.removeWhere((id) => !stillUnread.contains(id));
 
       for (final item in unread) {
-        await _notify(item);
+        if (_notifiedIds.add(item.id)) {
+          await _notify(item);
+        }
       }
     } catch (_) {
       // Offline/server hiccup - try again on the next tick, keep showing

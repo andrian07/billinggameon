@@ -230,17 +230,32 @@ class _BillingPageState extends State<BillingPage> {
 
     try {
       final session = await _sessionStorage.getSession();
-      await _billingRepository.bookTable(
-        tableId: table.id,
-        mode: result.sessionType,
-        startTime: now,
-        customerId: result.customerId,
-        promoId: result.promoId,
-        endTime: endAt,
-        duration: result.duration,
-        useSavedTime: result.useSavedTime,
-        createdBy: session?['username']?.toString(),
-      );
+      final createdBy = session?['username']?.toString();
+
+      Future<void> book({bool ignoreBookingWarning = false}) {
+        return _billingRepository.bookTable(
+          tableId: table.id,
+          mode: result.sessionType,
+          startTime: now,
+          customerId: result.customerId,
+          promoId: result.promoId,
+          endTime: endAt,
+          duration: result.duration,
+          useSavedTime: result.useSavedTime,
+          createdBy: createdBy,
+          ignoreBookingWarning: ignoreBookingWarning,
+        );
+      }
+
+      try {
+        await book();
+      } on BookingWarningException catch (w) {
+        if (!mounted) return;
+        final proceed = await _confirmBookingWarning(table, w.warnings);
+        if (proceed != true) return;
+        await book(ignoreBookingWarning: true);
+      }
+
       if (!mounted) return;
       AppToast.success(context, "Berhasil membuka ${table.name}");
       setState(() => _selectedTableId = table.id);
@@ -249,6 +264,61 @@ class _BillingPageState extends State<BillingPage> {
       if (!mounted) return;
       AppToast.error(context, e.message);
     }
+  }
+
+  Future<bool?> _confirmBookingWarning(PoolTable table, List<String> warnings) {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.card,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(AppSizes.radiusLarge),
+        ),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: AppColors.warning),
+            const SizedBox(width: 10),
+            Text("Perlu Diperhatikan", style: AppText.title),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            for (final w in warnings) ...[
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text("•  "),
+                  Expanded(child: Text(w, style: AppText.bodySecondary)),
+                ],
+              ),
+              const SizedBox(height: 8),
+            ],
+            const SizedBox(height: 4),
+            Text(
+              "Tetap buka ${table.name}?",
+              style: AppText.body.copyWith(fontWeight: FontWeight.w600),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text("Batal"),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.warning,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text("Tetap Buka"),
+          ),
+        ],
+      ),
+    );
   }
 
   void _replaceTable(PoolTable updated) {

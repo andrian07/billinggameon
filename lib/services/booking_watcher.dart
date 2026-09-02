@@ -17,14 +17,16 @@ import 'session_storage.dart';
 /// started once from [AppLayout] (idempotent) and stopped on logout, so it
 /// keeps running across every page for as long as the user is logged in.
 ///
-/// Polls every 5 seconds (faster than TopupWatcher's 12s) - bookings are
-/// time-sensitive room reservations the cashier needs to prep for quickly.
+/// Polls every 3 seconds - bookings are time-sensitive room reservations the
+/// cashier needs to prep for quickly, dan setiap poll sekalian menyegarkan
+/// mirror booking lokal di billing_api (dipakai untuk cek bentrok saat buka
+/// meja). [lastSyncAt] menandai kapan terakhir berhasil menarik data.
 class BookingWatcher {
   BookingWatcher._();
 
   static final instance = BookingWatcher._();
 
-  static const _pollInterval = Duration(seconds: 5);
+  static const _pollInterval = Duration(seconds: 3);
 
   final _repository = BookingRepository();
 
@@ -32,8 +34,19 @@ class BookingWatcher {
   bool _checking = false;
   bool _notifierReady = false;
 
+  /// booking_notification_id yang sudah pernah memunculkan notifikasi OS di
+  /// sesi ini - supaya 1 booking hanya "ding" sekali, bukan tiap poll
+  /// selama masih belum dibaca. Di-reset saat logout ([stop]).
+  final Set<int> _notifiedIds = <int>{};
+
   final _unreadCount = ValueNotifier<int>(0);
   ValueListenable<int> get unreadCount => _unreadCount;
+
+  /// Waktu (device) terakhir kali data booking berhasil ditarik dari server.
+  /// null = belum pernah berhasil sejak app dibuka / login. Halaman Booking
+  /// memakainya untuk menampilkan "terakhir sinkron X detik lalu".
+  final _lastSyncAt = ValueNotifier<DateTime?>(null);
+  ValueListenable<DateTime?> get lastSyncAt => _lastSyncAt;
 
   void start() {
     if (_timer != null) return;
@@ -45,6 +58,8 @@ class BookingWatcher {
     _timer?.cancel();
     _timer = null;
     _unreadCount.value = 0;
+    _notifiedIds.clear();
+    _lastSyncAt.value = null;
   }
 
   /// Re-checks immediately instead of waiting for the next scheduled tick -
@@ -59,23 +74,44 @@ class BookingWatcher {
     try {
       final branch = await SessionStorage().getBranch();
 
-      // getBookings() also does the customer auto-sync + notification logging
-      // server-side (see Master::bookings() in billing_api) - this call is
-      // what makes both of those happen; the list read below just reflects
-      // what it already logged. Scoped to this terminal's own branch.
-      await _repository.getBookings(branch: branch);
+      // getBookings() = daftar booking yang MASIH perlu ditindaklanjuti (status
+      // 'Booked' di gameon; hilang begitu kasir buka mejanya lewat
+      // confirm_booking). Sekalian memicu customer auto-sync + logging
+      // notifikasi di server. Proxy ke gameon, jadi bisa gagal sendiri.
+      List<BookingRequest>? bookings;
+      try {
+        bookings = await _repository.getBookings(branch: branch);
+      } catch (_) {
+        // sync hiccup - biarkan badge apa adanya, coba lagi tick berikutnya
+      }
 
-      final unread = await _repository.getNotifications(
-        branch: branch,
-        unreadOnly: true,
-      );
-      _unreadCount.value = unread.length;
+      if (bookings != null) {
+        // badge = booking yang belum di-acc DAN masih bisa ditindaklanjuti
+        // (yang jamnya sudah lewat total tidak dihitung - lihat isExpired)
+        _unreadCount.value = bookings.where((b) => !b.isExpired).length;
+        _lastSyncAt.value = DateTime.now();
+      }
 
-      for (final item in unread) {
-        await _notify(item);
+      // Notifikasi OS: sekali per booking baru yang belum dibaca sesi ini.
+      // Tetap pakai tabel booking_notification supaya "ding"-nya berhenti
+      // setelah kasir membuka halaman Booking (mark-all-read).
+      try {
+        final unread = await _repository.getNotifications(
+          branch: branch,
+          unreadOnly: true,
+        );
+        final stillUnread = unread.map((i) => i.id).toSet();
+        _notifiedIds.removeWhere((id) => !stillUnread.contains(id));
+        for (final item in unread) {
+          if (_notifiedIds.add(item.id)) {
+            await _notify(item);
+          }
+        }
+      } catch (_) {
+        // billing_api lokal hiccup - lewati notifikasi OS untuk tick ini
       }
     } catch (_) {
-      // Offline/server hiccup - try again on the next tick.
+      // gagal ambil branch dsb - coba lagi tick berikutnya
     } finally {
       _checking = false;
     }

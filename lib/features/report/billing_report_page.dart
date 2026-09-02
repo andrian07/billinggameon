@@ -451,20 +451,27 @@ class _BillingReportPageState extends State<BillingReportPage> {
         Container(
           color: AppColors.background.withValues(alpha: .4),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-          child: _buildSummary(result.summary),
+          child: _buildSummary(result),
         ),
       ],
     );
   }
 
-  Widget _buildSummary(ReportSummary summary) {
+  Widget _buildSummary(BillingReportResult result) {
+    final summary = result.summary;
+    // Diskon promo Fix tidak dihitung sebagai diskon (lihat effectiveDiscount),
+    // jadi total diskon di layar direkap ulang dari nilai efektif tiap baris.
+    final totalDiscount = result.rows.fold<int>(
+      0,
+      (sum, row) => sum + row.effectiveDiscount,
+    );
     return Row(
       children: [
         _summaryStat("Jumlah Nota", "${summary.invoiceCount}"),
         const SizedBox(width: 28),
         _summaryStat("Subtotal", formatCurrency(summary.totalSubTotal)),
         const SizedBox(width: 28),
-        _summaryStat("Diskon", formatCurrency(summary.totalDiscount)),
+        _summaryStat("Diskon", formatCurrency(totalDiscount)),
         const SizedBox(width: 28),
         _summaryStat("Pajak", formatCurrency(summary.totalTax)),
         const Spacer(),
@@ -555,10 +562,12 @@ class _BillingReportRowWidget extends StatelessWidget {
         member: _headerText("Member"),
         kasir: _headerText("Kasir"),
         payment: _headerText("Pembayaran"),
+        promo: _headerText("Promo"),
         subTotal: _headerText("Subtotal", alignEnd: true),
         diskon: _headerText("Diskon", alignEnd: true),
         total: _headerText("Total", alignEnd: true),
         status: _headerText("Status", alignCenter: true),
+        keterangan: _headerText("Keterangan"),
       );
     }
 
@@ -587,16 +596,28 @@ class _BillingReportRowWidget extends StatelessWidget {
         ),
         kasir: Text(r.kasirName, maxLines: 1, overflow: TextOverflow.ellipsis, style: cellStyle),
         payment: Text(r.paymentName, style: cellStyle),
+        promo: Text(
+          _promoLabel(r),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: cellStyle.copyWith(
+            color: r.promoName == null ? AppColors.textHint : AppColors.text,
+          ),
+        ),
         subTotal: Text(
           formatCurrency(r.subTotal),
           textAlign: TextAlign.end,
           style: cellStyle,
         ),
         diskon: Text(
-          r.discount > 0 ? "-${formatCurrency(r.discount)}" : "-",
+          r.effectiveDiscount > 0
+              ? "-${formatCurrency(r.effectiveDiscount)}"
+              : "-",
           textAlign: TextAlign.end,
           style: cellStyle.copyWith(
-            color: r.discount > 0 ? AppColors.success : AppColors.textHint,
+            color: r.effectiveDiscount > 0
+                ? AppColors.success
+                : AppColors.textHint,
           ),
         ),
         total: Text(
@@ -622,8 +643,35 @@ class _BillingReportRowWidget extends StatelessWidget {
             ),
           ),
         ),
+        keterangan: Text(
+          _keteranganLabel(r),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: cellStyle.copyWith(
+            color: r.usedSavedTime ? AppColors.text : AppColors.textHint,
+          ),
+        ),
       ),
     );
+  }
+
+  /// Nama promo yang dipakai. Untuk promo Fix (paket harga+durasi tetap)
+  /// nominal paket ikut ditulis di belakang nama — sejalan dengan export.
+  static String _promoLabel(BillingReportRow r) {
+    if (r.promoName == null) return "-";
+    if (r.isFixPromo && r.promoValue > 0) {
+      return "${r.promoName} (${formatCurrency(r.promoValue)})";
+    }
+    return r.promoName!;
+  }
+
+  /// Keterangan nota. Untuk nota yang dibayar pakai sisa waktu tersimpan,
+  /// sebutkan nilai tagihan yang seharusnya — sejalan dengan export.
+  static String _keteranganLabel(BillingReportRow r) {
+    if (!r.usedSavedTime) return "-";
+    final value = r.savedTimeValue;
+    if (value == null) return "Bayar pakai sisa waktu";
+    return "Bayar pakai sisa waktu (senilai ${formatCurrency(value)})";
   }
 
   static Widget _headerText(
@@ -652,10 +700,12 @@ class _BillingReportRowWidget extends StatelessWidget {
     required Widget member,
     required Widget kasir,
     required Widget payment,
+    required Widget promo,
     required Widget subTotal,
     required Widget diskon,
     required Widget total,
     required Widget status,
+    required Widget keterangan,
   }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -674,6 +724,8 @@ class _BillingReportRowWidget extends StatelessWidget {
         const SizedBox(width: 10),
         Expanded(flex: 2, child: payment),
         const SizedBox(width: 10),
+        Expanded(flex: 2, child: promo),
+        const SizedBox(width: 10),
         Expanded(flex: 2, child: subTotal),
         const SizedBox(width: 10),
         Expanded(flex: 2, child: diskon),
@@ -681,6 +733,8 @@ class _BillingReportRowWidget extends StatelessWidget {
         Expanded(flex: 2, child: total),
         const SizedBox(width: 10),
         SizedBox(width: 80, child: status),
+        const SizedBox(width: 10),
+        Expanded(flex: 3, child: keterangan),
       ],
     );
   }

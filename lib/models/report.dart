@@ -43,10 +43,30 @@ class BillingReportRow {
   final String? memberName;
   final String kasirName;
   final String paymentName;
+
+  /// Nama promo yang dipakai pada nota ini (null kalau tanpa promo).
+  final String? promoName;
+
+  /// Tipe promo apa adanya dari backend — "Diskon" (persen) atau "Fix"
+  /// (paket harga+durasi tetap). Kosong kalau tanpa promo.
+  final String? promoTipe;
+
+  /// Nilai promo: persen untuk tipe "Diskon", nominal paket untuk "Fix".
+  final int promoValue;
+
   final int subTotal;
   final int discount;
   final int tax;
   final int totalBill;
+
+  /// True kalau nota ini dibayar pakai sisa waktu tersimpan customer —
+  /// [totalBill] jadi 0, nilai tagihan seharusnya ada di [savedTimeValue].
+  final bool usedSavedTime;
+
+  /// Nilai tagihan yang seharusnya kalau tidak pakai sisa waktu (null kalau
+  /// bukan transaksi sisa waktu). Untuk kolom "Keterangan" di laporan.
+  final int? savedTimeValue;
+
   final String status;
 
   const BillingReportRow({
@@ -58,15 +78,32 @@ class BillingReportRow {
     this.memberName,
     required this.kasirName,
     required this.paymentName,
+    this.promoName,
+    this.promoTipe,
+    this.promoValue = 0,
     required this.subTotal,
     required this.discount,
     required this.tax,
     required this.totalBill,
+    this.usedSavedTime = false,
+    this.savedTimeValue,
     required this.status,
   });
 
+  /// Promo Fix adalah paket harga+durasi tetap: nominalnya sudah tercermin di
+  /// Sub Total/Total, jadi tidak ada "diskon" yang bermakna.
+  bool get isFixPromo =>
+      (promoName != null && promoName!.isNotEmpty) &&
+      (promoTipe?.trim().toLowerCase() == "fix");
+
+  /// Diskon efektif untuk ditampilkan: 0 kalau promonya tipe Fix, selain itu
+  /// pakai [discount] apa adanya. Sejalan dengan export Excel/PDF backend.
+  int get effectiveDiscount => isFixPromo ? 0 : discount;
+
   factory BillingReportRow.fromJson(Map<String, dynamic> json) {
     final memberName = json['member_name']?.toString();
+    final promoName = json['promo_name']?.toString();
+    final promoTipe = json['promo_tipe']?.toString();
 
     return BillingReportRow(
       id: _asInt(json['id']),
@@ -79,10 +116,18 @@ class BillingReportRow {
           : memberName,
       kasirName: json['kasir_name']?.toString() ?? "",
       paymentName: json['payment_name']?.toString() ?? "-",
+      promoName: (promoName == null || promoName.isEmpty) ? null : promoName,
+      promoTipe: (promoTipe == null || promoTipe.isEmpty) ? null : promoTipe,
+      promoValue: _asInt(json['promo_value']),
       subTotal: _asInt(json['sub_total']),
       discount: _asInt(json['discount']),
       tax: _asInt(json['tax']),
       totalBill: _asInt(json['total_bill']),
+      usedSavedTime: json['used_saved_time'] == true ||
+          json['saved_time_value'] != null,
+      savedTimeValue: json['saved_time_value'] == null
+          ? null
+          : _asInt(json['saved_time_value']),
       status: json['status']?.toString() ?? "",
     );
   }

@@ -71,6 +71,15 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
   List<Customer> _customers = [];
   List<Promo> _promos = [];
 
+  /// Hanya promo yang berlaku untuk kategori meja ini (promo tanpa batasan
+  /// kategori berlaku untuk semua) - biar tidak salah pilih.
+  List<Promo> get _promosForTable {
+    final cat = widget.table.categoryMejaId;
+    return _promos
+        .where((p) => p.categoryIds.isEmpty || p.categoryIds.contains(cat))
+        .toList();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -425,7 +434,9 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
               if (textEditingValue.text.isEmpty) return _customers;
               final query = textEditingValue.text.toLowerCase();
               return _customers.where(
-                (customer) => customer.name.toLowerCase().contains(query),
+                (customer) =>
+                    customer.name.toLowerCase().contains(query) ||
+                    customer.phone.toLowerCase().contains(query),
               );
             },
             onSelected: (customer) => _selectCustomer(customer),
@@ -435,7 +446,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
                 focusNode: focusNode,
                 style: AppText.body,
                 decoration: _inputDecoration(
-                  hint: "Cari nama member",
+                  hint: "Cari nama / no. HP member",
                   prefixIcon: Icons.person_outline_rounded,
                 ),
                 onChanged: (_) => _selectCustomer(null),
@@ -446,7 +457,9 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
                 context,
                 options: options,
                 onSelected: onSelected,
-                labelOf: (customer) => customer.name,
+                labelOf: (customer) => customer.phone.trim().isEmpty
+                    ? customer.name
+                    : "${customer.name} (${customer.phone})",
               );
             },
           ),
@@ -535,7 +548,7 @@ class _StartSessionDialogState extends State<StartSessionDialog> {
                 value: null,
                 child: Text("Tanpa Promo"),
               ),
-              for (final promo in _promos)
+              for (final promo in _promosForTable)
                 DropdownMenuItem<Promo?>(
                   value: promo,
                   child: Text(promo.name, overflow: TextOverflow.ellipsis),

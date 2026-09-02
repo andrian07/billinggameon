@@ -5,12 +5,14 @@ import '../../../core/constants/app_sizes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text.dart';
 import '../../../core/utils/formatters.dart';
+import '../../../models/cafe_promo.dart';
 import '../../../models/cart_item.dart';
 import '../../../models/customer.dart';
 import '../../../models/payment_method.dart';
 import '../../../services/session_storage.dart';
 import '../../customer/data/customer_repository.dart';
 import '../../payment/data/payment_method_repository.dart';
+import '../../promo/data/cafe_promo_repository.dart';
 import '../data/cafe_repository.dart';
 
 class CafePaymentResult {
@@ -59,18 +61,22 @@ class _CafePaymentDialogState extends State<CafePaymentDialog> {
   final _cafeRepository = CafeRepository();
   final _customerRepository = CustomerRepository();
   final _paymentMethodRepository = PaymentMethodRepository();
+  final _cafePromoRepository = CafePromoRepository();
   final _sessionStorage = SessionStorage();
 
   final _tableController = TextEditingController();
   final _customerNameController = TextEditingController();
   final _discountController = TextEditingController();
+  final _promoNoteController = TextEditingController();
 
   bool _loadingOptions = true;
   String? _loadError;
   List<PaymentMethod> _paymentMethods = [];
   List<Customer> _customers = [];
+  List<CafePromo> _cafePromos = [];
 
   PaymentMethod? _selectedPaymentMethod;
+  CafePromo? _selectedPromo;
   /// Set only when the typed customer name exactly matches a registered
   /// Customer — an unmatched/edited name is still sent as free text via
   /// [_customerNameController], just without a linked [Customer.id].
@@ -92,6 +98,7 @@ class _CafePaymentDialogState extends State<CafePaymentDialog> {
     _tableController.dispose();
     _customerNameController.dispose();
     _discountController.dispose();
+    _promoNoteController.dispose();
     super.dispose();
   }
 
@@ -100,9 +107,40 @@ class _CafePaymentDialogState extends State<CafePaymentDialog> {
     return value.clamp(0, 100);
   }
 
-  int get _discountAmount => (widget.subtotal * _discountPercent / 100).round();
+  /// Subtotal gabungan item di keranjang yang produknya termasuk cakupan promo
+  /// terpilih (item utama + addon). Dipakai untuk preview - server yang otoritatif.
+  int get _promoEligibleSubtotal {
+    final promo = _selectedPromo;
+    if (promo == null) return 0;
+    final ids = promo.productIds.toSet();
+    var sum = 0;
+    for (final item in widget.items) {
+      if (ids.contains(item.product.id)) {
+        sum += item.product.price * item.quantity;
+      }
+      for (final addon in item.addons) {
+        if (ids.contains(addon.product.id)) sum += addon.lineTotal;
+      }
+    }
+    return sum;
+  }
 
-  int get _totalAfterDiscount => widget.subtotal - _discountAmount;
+  /// Potongan dari promo cafe = subtotal item promo - harga promo (min 0).
+  /// Hanya berlaku kalau produk promo memang ada di keranjang.
+  int get _promoDiscount {
+    final promo = _selectedPromo;
+    if (promo == null) return 0;
+    final eligible = _promoEligibleSubtotal;
+    if (eligible <= 0) return 0;
+    return (eligible - promo.price).clamp(0, eligible);
+  }
+
+  int get _subtotalAfterPromo => widget.subtotal - _promoDiscount;
+
+  int get _discountAmount =>
+      (_subtotalAfterPromo * _discountPercent / 100).round();
+
+  int get _totalAfterDiscount => _subtotalAfterPromo - _discountAmount;
 
   Future<void> _loadOptions() async {
     setState(() {
@@ -117,10 +155,16 @@ class _CafePaymentDialogState extends State<CafePaymentDialog> {
       );
       final paymentMethods = await _paymentMethodRepository
           .getPaymentMethods();
+      // promo cafe opsional - kalau gagal dimuat, checkout tetap bisa jalan tanpa promo
+      List<CafePromo> cafePromos = const [];
+      try {
+        cafePromos = await _cafePromoRepository.getAllPromos();
+      } catch (_) {}
       if (!mounted) return;
       setState(() {
         _customers = customerResult.customers;
         _paymentMethods = paymentMethods;
+        _cafePromos = cafePromos;
         _selectedPaymentMethod = paymentMethods.isNotEmpty
             ? paymentMethods.first
             : null;
@@ -152,6 +196,19 @@ class _CafePaymentDialogState extends State<CafePaymentDialog> {
     final paymentMethod = _selectedPaymentMethod;
     if (paymentMethod == null) return;
 
+    final promo = _selectedPromo;
+    if (promo != null) {
+      if (_promoEligibleSubtotal <= 0) {
+        setState(() => _submitError =
+            "Produk untuk promo \"${promo.name}\" tidak ada di keranjang");
+        return;
+      }
+      if (_promoNoteController.text.trim().isEmpty) {
+        setState(() => _submitError = "Keterangan promo wajib diisi");
+        return;
+      }
+    }
+
     setState(() {
       _submitting = true;
       _submitError = null;
@@ -173,6 +230,8 @@ class _CafePaymentDialogState extends State<CafePaymentDialog> {
 
       final transactionCafeId = await _cafeRepository.submitTransactionCafe(
         customerId: customerId,
+        promoId: promo?.id,
+        promoNote: promo != null ? _promoNoteController.text.trim() : null,
         paymentId: paymentMethod.id,
         table: table,
         customerName: customerName.isNotEmpty ? customerName : null,
@@ -203,6 +262,69 @@ class _CafePaymentDialogState extends State<CafePaymentDialog> {
         _submitError = e.message;
       });
     }
+  }
+
+  Widget _buildPromoSection() {
+    final promo = _selectedPromo;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _label("Promo Cafe (opsional)"),
+        const SizedBox(height: 8),
+        DropdownButtonFormField<CafePromo?>(
+          initialValue: promo,
+          isExpanded: true,
+          style: AppText.body,
+          decoration: _inputDecoration(prefixIcon: Icons.local_offer_outlined),
+          items: [
+            const DropdownMenuItem<CafePromo?>(
+              value: null,
+              child: Text("Tanpa promo"),
+            ),
+            for (final p in _cafePromos)
+              DropdownMenuItem<CafePromo?>(
+                value: p,
+                child: Text(
+                  "${p.name} — ${formatCurrency(p.price)}",
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+          ],
+          onChanged: (value) => setState(() {
+            _selectedPromo = value;
+            if (value == null) _promoNoteController.clear();
+          }),
+        ),
+        if (promo != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            _promoEligibleSubtotal > 0
+                ? "Item promo: ${formatCurrency(_promoEligibleSubtotal)} → ${formatCurrency(promo.price)}  (hemat ${formatCurrency(_promoDiscount)})"
+                : "Produk promo ini belum ada di keranjang",
+            style: AppText.caption.copyWith(
+              color: _promoEligibleSubtotal > 0
+                  ? AppColors.success
+                  : AppColors.danger,
+            ),
+          ),
+          const SizedBox(height: 10),
+          _label("Keterangan Promo (wajib)"),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _promoNoteController,
+            style: AppText.body,
+            minLines: 1,
+            maxLines: 3,
+            decoration: _inputDecoration(
+              hint: "mis. pelanggan reguler / arahan supervisor",
+              prefixIcon: Icons.notes_rounded,
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+        ],
+      ],
+    );
   }
 
   @override
@@ -334,6 +456,11 @@ class _CafePaymentDialogState extends State<CafePaymentDialog> {
             ),
           ],
         ),
+
+        if (_cafePromos.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          _buildPromoSection(),
+        ],
 
         const SizedBox(height: 16),
         Row(
@@ -562,6 +689,15 @@ class _CafePaymentDialogState extends State<CafePaymentDialog> {
             "Subtotal",
             formatCurrency(widget.subtotal),
           ),
+          if (_selectedPromo != null && _promoDiscount > 0) ...[
+            const SizedBox(height: 10),
+            _kv(
+              Icons.local_offer_outlined,
+              "Promo (${_selectedPromo!.name})",
+              "-${formatCurrency(_promoDiscount)}",
+              valueColor: AppColors.danger,
+            ),
+          ],
           if (_discountPercent > 0) ...[
             const SizedBox(height: 10),
             _kv(

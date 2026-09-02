@@ -71,6 +71,8 @@ class PromoRepository {
     required PromoType type,
     required int value,
     int? hourGained,
+    int? freeHour,
+    List<int> categoryIds = const [],
     List<int>? validDays,
     int? validTimeStart,
     int? validTimeEnd,
@@ -80,6 +82,8 @@ class PromoRepository {
       "ms_promo_tipe": type.apiValue,
       "ms_promo_value": "$value",
       if (hourGained != null) "hour": "$hourGained",
+      if (freeHour != null) "free_hour": "$freeHour",
+      "category_ids": categoryIds,
       if (validDays != null && validDays.isNotEmpty)
         "valid_days": validDays.join(","),
       if (validTimeStart != null) "valid_time_start": "$validTimeStart",
@@ -93,6 +97,8 @@ class PromoRepository {
     required PromoType type,
     required int value,
     int? hourGained,
+    int? freeHour,
+    List<int> categoryIds = const [],
     List<int>? validDays,
     int? validTimeStart,
     int? validTimeEnd,
@@ -103,6 +109,8 @@ class PromoRepository {
       "ms_promo_tipe": type.apiValue,
       "ms_promo_value": "$value",
       "hour": hourGained != null ? "$hourGained" : "",
+      "free_hour": freeHour != null ? "$freeHour" : "",
+      "category_ids": categoryIds,
       "valid_days": (validDays != null && validDays.isNotEmpty)
           ? validDays.join(",")
           : "",

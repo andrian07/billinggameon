@@ -16,6 +16,19 @@ class BillingRepositoryException implements Exception {
   String toString() => message;
 }
 
+/// Dilempar oleh [BillingRepository.bookTable] kalau backend mengembalikan
+/// peringatan booking (bentrok dengan booking member / data booking basi).
+/// Bukan error keras - kasir boleh lanjut dengan memanggil ulang bookTable
+/// memakai `ignoreBookingWarning: true`.
+class BookingWarningException implements Exception {
+  final List<String> warnings;
+
+  const BookingWarningException(this.warnings);
+
+  @override
+  String toString() => warnings.join("\n");
+}
+
 class PriceCalculation {
   final int totalBilling;
   final int totalPromo;
@@ -62,6 +75,7 @@ class BillingRepository {
     Duration? duration,
     bool? useSavedTime,
     String? createdBy,
+    bool ignoreBookingWarning = false,
   }) async {
     final payload = <String, dynamic>{
       "table_id": tableId,
@@ -73,9 +87,20 @@ class BillingRepository {
       if (duration != null) "table_duration": formatDuration(duration),
       if (useSavedTime != null) "use_saved_time": useSavedTime ? "Y" : "N",
       if (createdBy != null) "created_by": createdBy,
+      if (ignoreBookingWarning) "ignore_booking_warning": "Y",
     };
 
-    await _post(ApiEndpoints.bookTable, payload);
+    final data = await _post(ApiEndpoints.bookTable, payload);
+
+    // backend memakai result == "BOOKING_WARNING" (code tetap 200) untuk minta
+    // konfirmasi kasir sebelum benar-benar membuka meja
+    if (data['result'] == 'BOOKING_WARNING') {
+      final raw = data['warnings'];
+      final warnings = raw is List
+          ? raw.map((e) => e.toString()).toList()
+          : <String>["Data booking perlu diperiksa sebelum membuka meja."];
+      throw BookingWarningException(warnings);
+    }
   }
 
   /// Looks up a customer's banked play time for the given table's category

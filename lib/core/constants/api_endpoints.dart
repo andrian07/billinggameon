@@ -41,6 +41,14 @@ class ApiEndpoints {
   static const String editPromo = "$baseUrl/Master/edit_promo";
   static const String deletePromo = "$baseUrl/Master/delete_promo";
 
+  // Master promo cafe (promo khusus transaksi cafe/POS - harga promo + daftar produk)
+  static const String cafePromoList = "$baseUrl/Master/cafe_promo_list";
+  static const String cafePromoListNoPaging =
+      "$baseUrl/Master/cafe_promo_list_no_pagging";
+  static const String addCafePromo = "$baseUrl/Master/add_cafe_promo";
+  static const String editCafePromo = "$baseUrl/Master/edit_cafe_promo";
+  static const String deleteCafePromo = "$baseUrl/Master/delete_cafe_promo";
+
   // Master category
   static const String categoryList = "$baseUrl/Master/category_list";
   static const String addCategory = "$baseUrl/Master/add_category";
@@ -131,6 +139,10 @@ class ApiEndpoints {
       "$baseUrl/Setting/edit_point_exchange";
   static const String deletePointExchange =
       "$baseUrl/Setting/delete_point_exchange";
+  static const String gameList = "$baseUrl/Setting/game";
+  static const String addGame = "$baseUrl/Setting/add_game";
+  static const String editGame = "$baseUrl/Setting/edit_game";
+  static const String deleteGame = "$baseUrl/Setting/delete_game";
   static const String categoryMejaList = "$baseUrl/Setting/category_meja";
   static const String addCategoryMeja = "$baseUrl/Setting/add_category_meja";
   static const String editCategoryMeja = "$baseUrl/Setting/edit_category_meja";
@@ -177,4 +189,5 @@ class ApiEndpoints {
       "$baseUrl/Master/booking_notifications";
   static const String markBookingNotificationRead =
       "$baseUrl/Master/mark_booking_notification_read";
+  static const String confirmBooking = "$baseUrl/Master/confirm_booking";
 }

@@ -20,6 +20,7 @@ import '../../features/report/saldo_report_page.dart';
 import '../../features/report/stock_report_page.dart';
 import '../../features/role/role_page.dart';
 import '../../features/settings/change_password_page.dart';
+import '../../features/settings/game_page.dart';
 import '../../features/settings/point_exchange_page.dart';
 import '../../features/settings/saldo_page.dart';
 import '../../features/settings/settings_page.dart';
@@ -179,6 +180,10 @@ final appRouter = GoRouter(
       path: "/setting/ganti-password",
       pageBuilder: (context, state) =>
           _fadeThroughPage(const ChangePasswordPage()),
+    ),
+    GoRoute(
+      path: "/setting/game",
+      pageBuilder: (context, state) => _fadeThroughPage(const GamePage()),
     ),
     GoRoute(
       path: "/setting/point-exchange",

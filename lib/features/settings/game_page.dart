@@ -4,33 +4,27 @@ import '../../core/constants/app_sizes.dart';
 import '../../core/navigation/app_navigation.dart';
 import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text.dart';
-import '../../core/utils/formatters.dart';
+import '../../models/game.dart';
 import '../../models/pagination_info.dart';
-import '../../models/promo.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/app_layout.dart';
 import '../../shared/widgets/app_toast.dart';
-import 'data/promo_repository.dart';
-import 'widgets/cafe_promo_section.dart';
-import 'widgets/promo_form_dialog.dart';
+import 'data/game_repository.dart';
+import 'widgets/game_form_dialog.dart';
 
-enum _PromoTab { billing, cafe }
-
-class PromoPage extends StatefulWidget {
-  const PromoPage({super.key});
+class GamePage extends StatefulWidget {
+  const GamePage({super.key});
 
   @override
-  State<PromoPage> createState() => _PromoPageState();
+  State<GamePage> createState() => _GamePageState();
 }
 
-class _PromoPageState extends State<PromoPage> {
+class _GamePageState extends State<GamePage> {
   static const _perPage = 10;
 
-  final _repository = PromoRepository();
+  final _repository = GameRepository();
 
-  _PromoTab _tab = _PromoTab.billing;
-
-  List<Promo> _promos = [];
+  List<Game> _items = [];
   PaginationInfo _pagination = PaginationInfo.empty;
   bool _loading = true;
   String? _error;
@@ -48,14 +42,14 @@ class _PromoPageState extends State<PromoPage> {
     });
 
     try {
-      final result = await _repository.getPromos(page: page, perPage: _perPage);
+      final result = await _repository.getGames(page: page, perPage: _perPage);
       if (!mounted) return;
       setState(() {
-        _promos = result.promos;
+        _items = result.items;
         _pagination = result.pagination;
         _loading = false;
       });
-    } on PromoRepositoryException catch (e) {
+    } on GameRepositoryException catch (e) {
       if (!mounted) return;
       setState(() {
         _error = e.message;
@@ -67,14 +61,6 @@ class _PromoPageState extends State<PromoPage> {
   void _goToPage(int page) {
     if (page == _pagination.currentPage || _loading) return;
     _load(page);
-  }
-
-  void _notifyError(String message) {
-    AppToast.error(context, message);
-  }
-
-  void _notifySuccess(String message) {
-    AppToast.success(context, message);
   }
 
   Future<bool> _confirm({
@@ -111,181 +97,113 @@ class _PromoPageState extends State<PromoPage> {
   }
 
   Future<void> _openAddDialog() async {
-    final result = await showDialog<PromoFormResult>(
+    final result = await showDialog<GameFormResult>(
       context: context,
-      builder: (_) => const PromoFormDialog(),
+      builder: (_) => const GameFormDialog(),
     );
     if (result == null) return;
 
     try {
-      await _repository.addPromo(
+      await _repository.addGame(
         name: result.name,
-        type: result.type,
-        value: result.value,
-        hourGained: result.hourGained,
-        freeHour: result.freeHour,
-        categoryIds: result.categoryIds,
-        validDays: result.validDays,
-        validTimeStart: result.validTimeStart,
-        validTimeEnd: result.validTimeEnd,
+        branchIds: result.branchIds,
+        consoles: result.consoles,
+        roomIds: result.roomIds,
+        description: result.description,
+        image: result.image,
       );
       if (!mounted) return;
-      _notifySuccess("Promo ${result.name} berhasil ditambahkan");
+      AppToast.success(context, "${result.name} berhasil ditambahkan");
       await _load(_pagination.currentPage);
-    } on PromoRepositoryException catch (e) {
+    } on GameRepositoryException catch (e) {
       if (!mounted) return;
-      _notifyError(e.message);
+      AppToast.error(context, e.message);
     }
   }
 
-  Future<void> _openEditDialog(Promo promo) async {
-    final result = await showDialog<PromoFormResult>(
+  Future<void> _openEditDialog(Game item) async {
+    final result = await showDialog<GameFormResult>(
       context: context,
-      builder: (_) => PromoFormDialog(promo: promo),
+      builder: (_) => GameFormDialog(game: item),
     );
     if (result == null) return;
 
     try {
-      await _repository.editPromo(
-        id: promo.id,
+      await _repository.editGame(
+        id: item.id,
         name: result.name,
-        type: result.type,
-        value: result.value,
-        hourGained: result.hourGained,
-        freeHour: result.freeHour,
-        categoryIds: result.categoryIds,
-        validDays: result.validDays,
-        validTimeStart: result.validTimeStart,
-        validTimeEnd: result.validTimeEnd,
+        branchIds: result.branchIds,
+        consoles: result.consoles,
+        roomIds: result.roomIds,
+        description: result.description,
+        image: result.image,
       );
       if (!mounted) return;
-      _notifySuccess("Promo ${result.name} berhasil diperbarui");
+      AppToast.success(context, "${result.name} berhasil diperbarui");
       await _load(_pagination.currentPage);
-    } on PromoRepositoryException catch (e) {
+    } on GameRepositoryException catch (e) {
       if (!mounted) return;
-      _notifyError(e.message);
+      AppToast.error(context, e.message);
     }
   }
 
-  Future<void> _confirmDelete(Promo promo) async {
+  Future<void> _confirmDelete(Game item) async {
     final confirmed = await _confirm(
-      title: "Hapus Promo?",
-      message: "Apakah Anda yakin akan menghapus promo \"${promo.name}\"?",
+      title: "Hapus Game?",
+      message: "Apakah Anda yakin akan menghapus game \"${item.name}\"?",
       confirmLabel: "YA, HAPUS",
     );
     if (!confirmed) return;
 
     try {
-      await _repository.deletePromo(promo.id);
+      await _repository.deleteGame(item.id);
       if (!mounted) return;
-      _notifySuccess("Promo ${promo.name} berhasil dihapus");
+      AppToast.success(context, "${item.name} berhasil dihapus");
       await _load(_pagination.currentPage);
-    } on PromoRepositoryException catch (e) {
+    } on GameRepositoryException catch (e) {
       if (!mounted) return;
-      _notifyError(e.message);
+      AppToast.error(context, e.message);
     }
   }
 
   @override
   Widget build(BuildContext context) {
     return AppLayout(
-      title: "Promo",
-      subtitle: "Kelola promo diskon",
+      title: "Game",
+      subtitle: "Kelola daftar game yang tersedia",
       showSearch: false,
-      activeMenuKey: "promo",
+      activeMenuKey: "setting_game",
       onMenuSelect: (key) => navigateToMenu(context, key),
-      onRefresh: () => _load(_pagination.currentPage),
       child: _buildCard(),
     );
   }
 
   Widget _buildCard() {
-    final isCafe = _tab == _PromoTab.cafe;
     return AppCard(
       padding: EdgeInsets.zero,
       child: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(20, 18, 20, 12),
+            padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
             child: _buildToolbar(),
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-            child: _buildTabSwitch(),
-          ),
           const Divider(height: 1, color: AppColors.divider),
-          if (isCafe)
-            const Expanded(child: CafePromoSection())
-          else ...[
-            if (!_loading && _error == null)
-              Padding(
-                padding: const EdgeInsets.fromLTRB(36, 14, 36, 6),
-                child: _PromoRow.header(),
-              ),
-            Expanded(child: _buildBody()),
-            if (!_loading && _error == null && _promos.isNotEmpty) ...[
-              const Divider(height: 1, color: AppColors.divider),
-              Container(
-                color: AppColors.background.withValues(alpha: .3),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 20,
-                  vertical: 14,
-                ),
-                child: _buildPagination(),
-              ),
-            ],
+          if (!_loading && _error == null && _items.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(36, 14, 36, 6),
+              child: _GameRow.header(),
+            ),
+          Expanded(child: _buildBody()),
+          if (!_loading && _error == null && _items.isNotEmpty) ...[
+            const Divider(height: 1, color: AppColors.divider),
+            Container(
+              color: AppColors.background.withValues(alpha: .3),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              child: _buildPagination(),
+            ),
           ],
         ],
       ),
-    );
-  }
-
-  Widget _buildTabSwitch() {
-    Widget tab(String label, _PromoTab value, IconData icon) {
-      final active = _tab == value;
-      return Expanded(
-        child: InkWell(
-          borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
-          onTap: () => setState(() => _tab = value),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 9),
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: active ? AppColors.primary : Colors.transparent,
-              borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
-              border: Border.all(
-                color: active ? AppColors.primary : AppColors.border,
-              ),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  icon,
-                  size: 15,
-                  color: active ? Colors.white : AppColors.textSecondary,
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  label,
-                  style: AppText.caption.copyWith(
-                    fontWeight: FontWeight.w600,
-                    color: active ? Colors.white : AppColors.textSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
-    return Row(
-      children: [
-        tab("Promo Billing", _PromoTab.billing, Icons.table_bar_rounded),
-        const SizedBox(width: 8),
-        tab("Promo Cafe", _PromoTab.cafe, Icons.local_cafe_outlined),
-      ],
     );
   }
 
@@ -296,27 +214,27 @@ class _PromoPageState extends State<PromoPage> {
     if (_error != null) {
       return _buildErrorState(_error!);
     }
-    if (_promos.isEmpty) {
+    if (_items.isEmpty) {
       return _buildEmptyState();
     }
 
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-      itemCount: _promos.length,
+      itemCount: _items.length,
       separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
-        final promo = _promos[index];
+        final item = _items[index];
         return _RowCard(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: _PromoRow.data(
+            child: _GameRow.data(
               no:
                   (_pagination.currentPage - 1) * _pagination.perPage +
                   index +
                   1,
-              promo: promo,
-              onEdit: () => _openEditDialog(promo),
-              onDelete: () => _confirmDelete(promo),
+              item: item,
+              onEdit: () => _openEditDialog(item),
+              onDelete: () => _confirmDelete(item),
             ),
           ),
         );
@@ -336,7 +254,7 @@ class _PromoPageState extends State<PromoPage> {
             borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
           ),
           child: const Icon(
-            Icons.local_offer_outlined,
+            Icons.sports_esports_rounded,
             color: AppColors.primary,
             size: 22,
           ),
@@ -347,27 +265,26 @@ class _PromoPageState extends State<PromoPage> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
-              "Daftar Promo",
+              "Daftar Game",
               style: AppText.title.copyWith(fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 2),
             Text(
               _loading || _error != null
                   ? "Memuat data..."
-                  : "${_pagination.totalItems} promo terdaftar",
+                  : "${_pagination.totalItems} game",
               style: AppText.caption,
             ),
           ],
         ),
         const Spacer(),
-        if (_tab == _PromoTab.billing)
         SizedBox(
           height: 40,
           child: ElevatedButton.icon(
             onPressed: _openAddDialog,
             icon: const Icon(Icons.add_rounded, size: 18),
             label: Text(
-              "Tambah Promo",
+              "Tambah Game",
               style: AppText.button.copyWith(fontSize: 13),
             ),
             style: ElevatedButton.styleFrom(
@@ -399,13 +316,13 @@ class _PromoPageState extends State<PromoPage> {
               shape: BoxShape.circle,
             ),
             child: const Icon(
-              Icons.local_offer_outlined,
+              Icons.sports_esports_rounded,
               size: 30,
               color: AppColors.textHint,
             ),
           ),
           const SizedBox(height: 14),
-          Text("Belum ada promo ditemukan", style: AppText.bodySecondary),
+          Text("Belum ada game ditemukan", style: AppText.bodySecondary),
         ],
       ),
     );
@@ -467,7 +384,7 @@ class _PromoPageState extends State<PromoPage> {
     return Row(
       children: [
         Text(
-          "Menampilkan $startItem-$endItem dari ${p.totalItems} promo",
+          "Menampilkan $startItem-$endItem dari ${p.totalItems} game",
           style: AppText.caption,
         ),
         const Spacer(),
@@ -487,10 +404,7 @@ class _PromoPageState extends State<PromoPage> {
   }
 
   List<Widget> _buildPageButtons() {
-    final window = _pageWindow(
-      _pagination.totalPages,
-      _pagination.currentPage,
-    );
+    final window = _pageWindow(_pagination.totalPages, _pagination.currentPage);
     final widgets = <Widget>[];
 
     for (var i = 0; i < window.length; i++) {
@@ -621,23 +535,23 @@ class _RowCardState extends State<_RowCard> {
   }
 }
 
-class _PromoRow extends StatelessWidget {
+class _GameRow extends StatelessWidget {
   final bool header;
   final int? no;
-  final Promo? promo;
+  final Game? item;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
 
-  const _PromoRow.header()
+  const _GameRow.header()
     : header = true,
       no = null,
-      promo = null,
+      item = null,
       onEdit = null,
       onDelete = null;
 
-  const _PromoRow.data({
+  const _GameRow.data({
     required this.no,
-    required this.promo,
+    required this.item,
     required this.onEdit,
     required this.onDelete,
   }) : header = false;
@@ -647,79 +561,73 @@ class _PromoRow extends StatelessWidget {
     if (header) {
       return _row(
         no: _headerText("NO"),
-        name: _headerText("NAMA PROMO"),
-        type: _headerText("TIPE", alignCenter: true),
-        value: _headerText("NILAI", alignEnd: true),
+        name: _headerText("GAME"),
+        branch: _headerText("CABANG"),
+        console: _headerText("CONSOLE"),
+        rooms: _headerText("RUANGAN"),
+        desc: _headerText("KETERANGAN"),
         aksi: _headerText("AKSI", alignCenter: true),
       );
     }
 
-    final p = promo!;
+    final g = item!;
     final cellStyle = AppText.caption.copyWith(fontSize: 13);
-    final isPercentage = p.type == PromoType.percentage;
-    final typeColor = isPercentage ? AppColors.purple : AppColors.info;
+    final rooms = g.roomNames.isEmpty ? "-" : g.roomNames.join(", ");
+    final branches = g.branchNames.isEmpty ? "-" : g.branchNames.join(", ");
+    final consoles = g.consoles.isEmpty ? "-" : g.consoles.join(", ");
 
     return _row(
       no: Text("$no", style: cellStyle.copyWith(color: AppColors.textHint)),
-      name: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
+      name: Row(
         children: [
-          Text(
-            p.name,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: cellStyle.copyWith(fontWeight: FontWeight.w600),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(AppSizes.radiusSmall),
+            child: SizedBox(
+              width: 32,
+              height: 32,
+              child: g.imageUrl.isNotEmpty
+                  ? Image.network(
+                      g.imageUrl,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => _thumbnailPlaceholder(),
+                    )
+                  : _thumbnailPlaceholder(),
+            ),
           ),
-          if (p.categoryIds.isNotEmpty ||
-              (p.freeHour != null && p.freeHour! > 0) ||
-              p.hasDayRestriction ||
-              p.hasTimeWindow) ...[
-            const SizedBox(height: 2),
-            Text(
-              [
-                if (p.categoryIds.isNotEmpty)
-                  "Khusus ${p.categoryIds.length} kategori meja",
-                if (p.freeHour != null && p.freeHour! > 0)
-                  "Gratis ${p.freeHour} jam (pakai waktu tersimpan)",
-                if (p.hasDayRestriction)
-                  p.validDays!.map((d) => weekdayLabels[d]).join(", "),
-                if (p.hasTimeWindow)
-                  "${p.validTimeStart.toString().padLeft(2, '0')}:00-"
-                      "${p.validTimeEnd.toString().padLeft(2, '0')}:00",
-              ].join(" • "),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              g.name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: AppText.caption.copyWith(
-                fontSize: 10,
-                color: AppColors.textHint,
-              ),
+              style: cellStyle.copyWith(fontWeight: FontWeight.w600),
             ),
-          ],
+          ),
         ],
       ),
-      type: Align(
-        alignment: Alignment.center,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-          decoration: BoxDecoration(
-            color: typeColor.withValues(alpha: .15),
-            borderRadius: BorderRadius.circular(30),
-          ),
-          child: Text(
-            p.type.label,
-            style: AppText.caption.copyWith(
-              fontSize: 11,
-              color: typeColor,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ),
+      branch: Text(
+        branches,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: cellStyle,
       ),
-      value: Text(
-        isPercentage ? "${p.value}%" : formatCurrency(p.value),
-        textAlign: TextAlign.end,
-        style: cellStyle.copyWith(fontWeight: FontWeight.w600),
+      console: Text(
+        consoles,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: cellStyle,
+      ),
+      rooms: Text(
+        rooms,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: cellStyle.copyWith(color: AppColors.textSecondary),
+      ),
+      desc: Text(
+        g.description.isEmpty ? "-" : g.description,
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: cellStyle.copyWith(color: AppColors.textSecondary),
       ),
       aksi: Center(
         child: PopupMenuButton<String>(
@@ -763,6 +671,18 @@ class _PromoRow extends StatelessWidget {
     );
   }
 
+  static Widget _thumbnailPlaceholder() {
+    return Container(
+      color: AppColors.textHint.withValues(alpha: .12),
+      alignment: Alignment.center,
+      child: const Icon(
+        Icons.sports_esports_outlined,
+        size: 16,
+        color: AppColors.textHint,
+      ),
+    );
+  }
+
   static Widget _menuItem(IconData icon, String label, {Color? color}) {
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -798,8 +718,10 @@ class _PromoRow extends StatelessWidget {
   static Widget _row({
     required Widget no,
     required Widget name,
-    required Widget type,
-    required Widget value,
+    required Widget branch,
+    required Widget console,
+    required Widget rooms,
+    required Widget desc,
     required Widget aksi,
   }) {
     return Row(
@@ -809,9 +731,13 @@ class _PromoRow extends StatelessWidget {
         const SizedBox(width: 10),
         Expanded(flex: 3, child: name),
         const SizedBox(width: 10),
-        SizedBox(width: 100, child: type),
+        Expanded(flex: 2, child: branch),
         const SizedBox(width: 10),
-        SizedBox(width: 110, child: value),
+        Expanded(flex: 2, child: console),
+        const SizedBox(width: 10),
+        Expanded(flex: 3, child: rooms),
+        const SizedBox(width: 10),
+        Expanded(flex: 3, child: desc),
         const SizedBox(width: 10),
         SizedBox(width: 48, child: aksi),
       ],

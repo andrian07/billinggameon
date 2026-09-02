@@ -24,6 +24,22 @@ class Promo {
   /// is configured (or the promo is a percentage discount).
   final int? hourGained;
 
+  /// Extra hours granted free on top of [hourGained] (e.g. "2 Jam Gratis 1
+  /// Jam" → hourGained=2, freeHour=1) — only meaningful for [PromoType.fixed].
+  /// Purely informational for a normal (paid) booking; it only has a real
+  /// effect when the session is booked using banked/saved time (see
+  /// Billing_model::apply_promo_free_hour on the backend): playing longer
+  /// than [hourGained] deducts at most [freeHour] fewer hours from the
+  /// customer's saved-time balance — capped at freeHour, not multiplied by
+  /// how much longer they play.
+  final int? freeHour;
+
+  /// Table categories (category_meja_id) this promo may be applied to.
+  /// Empty/null = valid for ALL categories. Enforced on the backend in
+  /// Billing::book_table()/payment() so a promo can't be applied to a table
+  /// of the wrong category.
+  final List<int> categoryIds;
+
   /// Days of week this promo may be used (1=Senin..7=Minggu, ISO weekday —
   /// matches PHP's date('N') on the backend). Empty/null means every day.
   final List<int>? validDays;
@@ -42,6 +58,8 @@ class Promo {
     required this.type,
     required this.value,
     this.hourGained,
+    this.freeHour,
+    this.categoryIds = const [],
     this.validDays,
     this.validTimeStart,
     this.validTimeEnd,
@@ -55,6 +73,8 @@ class Promo {
     final rawId = json['id'];
     final rawValue = json['value'];
     final rawHour = json['hour'];
+    final rawFreeHour = json['free_hour'];
+    final rawCategoryIds = json['category_ids'];
     final rawDays = json['valid_days']?.toString();
     final rawStart = json['valid_time_start'];
     final rawEnd = json['valid_time_end'];
@@ -69,6 +89,15 @@ class Promo {
       hourGained: rawHour is int
           ? rawHour
           : int.tryParse(rawHour?.toString() ?? ""),
+      freeHour: rawFreeHour is int
+          ? rawFreeHour
+          : int.tryParse(rawFreeHour?.toString() ?? ""),
+      categoryIds: rawCategoryIds is List
+          ? rawCategoryIds
+                .map((e) => int.tryParse(e.toString()))
+                .whereType<int>()
+                .toList()
+          : const [],
       validDays: (rawDays != null && rawDays.isNotEmpty)
           ? rawDays
               .split(',')

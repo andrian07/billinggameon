@@ -151,6 +151,11 @@ class AppSidebar extends StatelessWidget {
           menuKey: "setting_table",
         ),
         AppMenuItem(
+          title: "Game",
+          icon: Icons.sports_esports_rounded,
+          menuKey: "setting_game",
+        ),
+        AppMenuItem(
           title: "Ganti Password",
           icon: Icons.lock_reset_rounded,
           menuKey: "ganti_password",

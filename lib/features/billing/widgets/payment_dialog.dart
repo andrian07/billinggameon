@@ -61,6 +61,17 @@ class _PaymentDialogState extends State<PaymentDialog> {
   String? _promoLoadError;
   List<Promo> _promos = [];
 
+  /// Promo yang berlaku untuk kategori meja ini (promo tanpa batasan kategori
+  /// berlaku semua). Promo yang sedang terpilih tetap disertakan supaya
+  /// dropdown-nya tidak error walau kategorinya berbeda.
+  List<Promo> get _promosForTable {
+    final cat = widget.table.categoryMejaId;
+    return _promos.where((p) {
+      if (p.categoryIds.isEmpty || p.categoryIds.contains(cat)) return true;
+      return _selectedPromo?.id == p.id;
+    }).toList();
+  }
+
   bool _loadingPaymentMethods = true;
   String? _paymentMethodLoadError;
   List<PaymentMethod> _paymentMethods = [];
@@ -621,7 +632,7 @@ class _PaymentDialogState extends State<PaymentDialog> {
                     value: null,
                     child: Text("Tanpa Promo"),
                   ),
-                  for (final promo in _promos)
+                  for (final promo in _promosForTable)
                     DropdownMenuItem<Promo?>(
                       value: promo,
                       child: Text(promo.name, overflow: TextOverflow.ellipsis),

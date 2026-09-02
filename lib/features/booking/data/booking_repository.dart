@@ -80,6 +80,14 @@ class BookingRepository {
     });
   }
 
+  /// Marks a booking as served on gameon (status -> Done) so it drops off
+  /// the active list - called after the table has been opened from it.
+  Future<void> confirmBooking(int bookingRequestId) {
+    return _post(ApiEndpoints.confirmBooking, {
+      "booking_request_id": bookingRequestId,
+    });
+  }
+
   Future<Map<String, dynamic>> _post(
     String url,
     Map<String, dynamic> payload,
