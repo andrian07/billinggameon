@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.11.1 — 2026-09-02
+
+- Ikon aplikasi (semua platform: Android, iOS, macOS, Windows, Web) diganti memakai
+  `assets/icons/logo.png`.
+
 ## v1.11.0 — 2026-09-02
 
 Menu Game, penjaga bentrok booking, poin dihitung saat pembayaran, dan sinkronisasi
