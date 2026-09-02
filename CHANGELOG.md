@@ -1,5 +1,10 @@
 # Changelog
 
+## v1.11.3 — 2026-09-02
+
+- Hapus file gambar ikon lama yang sudah tidak dipakai (`assets/icons/icon.png`,
+  `assets/icons/logo.png`). Sumber ikon sekarang hanya `assets/icons/Logoicon.png`.
+
 ## v1.11.2 — 2026-09-02
 
 - Ikon aplikasi diganti memakai `assets/icons/Logoicon.png` (1254×1254, resolusi lebih
