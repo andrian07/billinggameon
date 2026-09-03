@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import '../../../core/constants/api_endpoints.dart';
 import '../../../models/cart_item.dart';
 import '../../../models/keep_transaction.dart';
+import '../../billing/data/member_approval_repository.dart';
 
 class CafeRepositoryException implements Exception {
   final String message;
@@ -48,6 +49,7 @@ class CafeRepository {
     required String createdBy,
     required int paidBy,
     required List<CartItem> items,
+    String? memberApprovalRef,
   }) async {
     final data = await _post(ApiEndpoints.saveTransactionCafe, {
       "customer_id": customerId ?? 0,
@@ -60,6 +62,7 @@ class CafeRepository {
       "discount_percent": discountPercent,
       "created_by": createdBy,
       "paid_by": paidBy,
+      if (memberApprovalRef != null) "member_approval_ref": memberApprovalRef,
       "items": [
         for (final item in items)
           {
@@ -74,6 +77,15 @@ class CafeRepository {
           },
       ],
     });
+
+    // Potong Saldo + member: backend menahan transaksi sampai member konfirmasi PIN
+    if (data['result'] == 'NEED_MEMBER_APPROVAL') {
+      final approval = data['approval'];
+      throw MemberApprovalRequiredException.fromApproval(
+        memberApprovalRef ?? "",
+        approval is Map<String, dynamic> ? approval : null,
+      );
+    }
 
     final rawId = data['transaction_cafe_id'];
     return rawId is int ? rawId : int.tryParse(rawId?.toString() ?? "") ?? 0;

@@ -67,7 +67,6 @@ class _TableSettingPageState extends State<TableSettingPage> {
         relay: result.relay,
         number: result.number,
         point: result.point,
-        categoryId: result.categoryId,
       );
       if (!mounted) return;
       AppToast.success(

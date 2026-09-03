@@ -4,21 +4,17 @@ import 'package:flutter/services.dart';
 import '../../../core/constants/app_sizes.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_text.dart';
-import '../../../models/table_category.dart';
 import '../../../models/table_setting.dart';
-import '../data/table_category_repository.dart';
 
 class TableSettingEditResult {
   final String number;
   final int relay;
   final int point;
-  final int? categoryId;
 
   const TableSettingEditResult({
     required this.number,
     required this.relay,
     required this.point,
-    this.categoryId,
   });
 }
 
@@ -32,8 +28,6 @@ class TableSettingEditDialog extends StatefulWidget {
 }
 
 class _TableSettingEditDialogState extends State<TableSettingEditDialog> {
-  final _categoryRepository = TableCategoryRepository();
-
   final _formKey = GlobalKey<FormState>();
   late final _numberController = TextEditingController(
     text: widget.table.number,
@@ -44,42 +38,6 @@ class _TableSettingEditDialogState extends State<TableSettingEditDialog> {
   late final _pointController = TextEditingController(
     text: "${widget.table.point}",
   );
-
-  bool _loadingCategories = true;
-  String? _categoryError;
-  List<TableCategory> _categories = [];
-  late int? _selectedCategoryId = widget.table.categoryId;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadCategories();
-  }
-
-  Future<void> _loadCategories() async {
-    setState(() {
-      _loadingCategories = true;
-      _categoryError = null;
-    });
-
-    try {
-      final result = await _categoryRepository.getTableCategories(
-        page: 1,
-        perPage: 200,
-      );
-      if (!mounted) return;
-      setState(() {
-        _categories = result.items.where((c) => c.active).toList();
-        _loadingCategories = false;
-      });
-    } on TableCategoryRepositoryException catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _categoryError = e.message;
-        _loadingCategories = false;
-      });
-    }
-  }
 
   @override
   void dispose() {
@@ -97,7 +55,6 @@ class _TableSettingEditDialogState extends State<TableSettingEditDialog> {
         number: _numberController.text.trim(),
         relay: int.tryParse(_relayController.text.trim()) ?? 0,
         point: int.tryParse(_pointController.text.trim()) ?? 0,
-        categoryId: _selectedCategoryId,
       ),
     );
   }
@@ -185,9 +142,7 @@ class _TableSettingEditDialogState extends State<TableSettingEditDialog> {
               ),
 
               const SizedBox(height: 16),
-              _label("Kategori Meja"),
-              const SizedBox(height: 8),
-              _buildCategoryField(),
+              _buildCategoryInfo(),
 
               const SizedBox(height: 28),
               Row(
@@ -290,93 +245,43 @@ class _TableSettingEditDialogState extends State<TableSettingEditDialog> {
     );
   }
 
-  Widget _buildCategoryField() {
-    if (_loadingCategories) {
-      return Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        decoration: BoxDecoration(
-          color: AppColors.background,
-          borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
-          border: Border.all(color: AppColors.border),
-        ),
-        child: Row(
-          children: [
-            const SizedBox(
-              width: 16,
-              height: 16,
-              child: CircularProgressIndicator(strokeWidth: 2),
-            ),
-            const SizedBox(width: 10),
-            Text("Memuat kategori...", style: AppText.caption),
-          ],
-        ),
-      );
-    }
-
-    if (_categoryError != null) {
-      return Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppColors.danger.withValues(alpha: .1),
-          borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
-          border: Border.all(color: AppColors.danger.withValues(alpha: .3)),
-        ),
-        child: Row(
-          children: [
-            const Icon(
-              Icons.error_outline_rounded,
-              size: 16,
-              color: AppColors.danger,
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                _categoryError!,
-                style: AppText.caption.copyWith(color: AppColors.danger),
-              ),
-            ),
-            TextButton(
-              onPressed: _loadCategories,
-              child: const Text("Coba Lagi"),
-            ),
-          ],
-        ),
-      );
-    }
-
-    // Keep the table's current category selectable even if it's since been
-    // deactivated/removed from the master list, so saving doesn't silently
-    // drop it.
-    final options = {for (final c in _categories) c.id: c.name};
-    if (_selectedCategoryId != null && !options.containsKey(_selectedCategoryId)) {
-      options[_selectedCategoryId!] = widget.table.categoryName ?? "Kategori #$_selectedCategoryId";
-    }
-
-    return DropdownButtonFormField<int?>(
-      initialValue: _selectedCategoryId,
-      dropdownColor: AppColors.card,
-      style: AppText.body,
-      isExpanded: true,
-      icon: const Icon(
-        Icons.keyboard_arrow_down_rounded,
-        color: AppColors.textSecondary,
+  /// Kategori meja tidak diedit di sini — diatur lewat menu Kategori Meja
+  /// ("Meja yang Memakai Kategori Ini"). Ditampilkan baca-saja sebagai konteks.
+  Widget _buildCategoryInfo() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.background,
+        borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
+        border: Border.all(color: AppColors.border),
       ),
-      decoration: _inputDecoration(
-        hint: "Tanpa kategori",
-        prefixIcon: Icons.category_outlined,
-      ),
-      items: [
-        const DropdownMenuItem<int?>(
-          value: null,
-          child: Text("Tanpa Kategori"),
-        ),
-        for (final entry in options.entries)
-          DropdownMenuItem<int?>(
-            value: entry.key,
-            child: Text(entry.value, overflow: TextOverflow.ellipsis),
+      child: Row(
+        children: [
+          const Icon(
+            Icons.category_outlined,
+            size: 20,
+            color: AppColors.textSecondary,
           ),
-      ],
-      onChanged: (value) => setState(() => _selectedCategoryId = value),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  "Kategori: ${widget.table.categoryName ?? "Belum diatur"}",
+                  style: AppText.body.copyWith(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  "Ubah lewat menu Kategori Meja",
+                  style: AppText.caption,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 

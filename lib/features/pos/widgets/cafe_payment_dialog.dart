@@ -12,6 +12,8 @@ import '../../../models/payment_method.dart';
 import '../../../services/session_storage.dart';
 import '../../customer/data/customer_repository.dart';
 import '../../payment/data/payment_method_repository.dart';
+import '../../billing/data/member_approval_repository.dart';
+import '../../billing/widgets/member_approval_wait_dialog.dart';
 import '../../promo/data/cafe_promo_repository.dart';
 import '../data/cafe_repository.dart';
 
@@ -228,7 +230,8 @@ class _CafePaymentDialogState extends State<CafePaymentDialog> {
           ? _selectedCustomerId
           : null;
 
-      final transactionCafeId = await _cafeRepository.submitTransactionCafe(
+      final approvalRef = generateApprovalRef();
+      Future<int> save() => _cafeRepository.submitTransactionCafe(
         customerId: customerId,
         promoId: promo?.id,
         promoNote: promo != null ? _promoNoteController.text.trim() : null,
@@ -240,7 +243,33 @@ class _CafePaymentDialogState extends State<CafePaymentDialog> {
         createdBy: createdBy,
         paidBy: paidBy,
         items: widget.items,
+        memberApprovalRef: approvalRef,
       );
+
+      int transactionCafeId;
+      try {
+        transactionCafeId = await save();
+      } on MemberApprovalRequiredException catch (e) {
+        if (!mounted) return;
+        final outcome = await showDialog<MemberApprovalOutcome>(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => MemberApprovalWaitDialog(
+            ref: e.ref,
+            amount: e.amount == 0 ? _subtotalAfterPromo : e.amount,
+            expiresAt: e.expiresAt,
+          ),
+        );
+        if (outcome != MemberApprovalOutcome.approved) {
+          if (!mounted) return;
+          setState(() {
+            _submitting = false;
+            _submitError = _approvalMessage(outcome);
+          });
+          return;
+        }
+        transactionCafeId = await save();
+      }
 
       if (!mounted) return;
       Navigator.of(context).pop(
@@ -261,6 +290,19 @@ class _CafePaymentDialogState extends State<CafePaymentDialog> {
         _submitting = false;
         _submitError = e.message;
       });
+    }
+  }
+
+  String _approvalMessage(MemberApprovalOutcome? o) {
+    switch (o) {
+      case MemberApprovalOutcome.rejected:
+        return "Pembayaran ditolak oleh member.";
+      case MemberApprovalOutcome.expired:
+        return "Member tidak merespon (waktu habis). Coba lagi atau ganti metode bayar.";
+      case MemberApprovalOutcome.cancelled:
+        return "Konfirmasi dibatalkan.";
+      default:
+        return "Gagal mendapatkan konfirmasi member.";
     }
   }
 

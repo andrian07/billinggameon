@@ -10,6 +10,7 @@ import '../../models/promo.dart';
 import '../../shared/widgets/app_card.dart';
 import '../../shared/widgets/app_layout.dart';
 import '../../shared/widgets/app_toast.dart';
+import '../settings/data/table_category_repository.dart';
 import 'data/promo_repository.dart';
 import 'widgets/cafe_promo_section.dart';
 import 'widgets/promo_form_dialog.dart';
@@ -27,6 +28,7 @@ class _PromoPageState extends State<PromoPage> {
   static const _perPage = 10;
 
   final _repository = PromoRepository();
+  final _categoryRepository = TableCategoryRepository();
 
   _PromoTab _tab = _PromoTab.billing;
 
@@ -35,10 +37,29 @@ class _PromoPageState extends State<PromoPage> {
   bool _loading = true;
   String? _error;
 
+  /// category_meja_id -> nama, dipakai untuk kolom "Kategori" di daftar promo.
+  Map<int, String> _categoryNames = {};
+
   @override
   void initState() {
     super.initState();
+    _loadCategories();
     _load(1);
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      final result = await _categoryRepository.getTableCategories(
+        page: 1,
+        perPage: 200,
+      );
+      if (!mounted) return;
+      setState(() {
+        _categoryNames = {for (final c in result.items) c.id: c.name};
+      });
+    } on TableCategoryRepositoryException {
+      // biarkan kosong - kolom kategori akan fallback ke "#id"
+    }
   }
 
   Future<void> _load(int page) async {
@@ -315,6 +336,7 @@ class _PromoPageState extends State<PromoPage> {
                   index +
                   1,
               promo: promo,
+              categoryNames: _categoryNames,
               onEdit: () => _openEditDialog(promo),
               onDelete: () => _confirmDelete(promo),
             ),
@@ -361,26 +383,26 @@ class _PromoPageState extends State<PromoPage> {
         ),
         const Spacer(),
         if (_tab == _PromoTab.billing)
-        SizedBox(
-          height: 40,
-          child: ElevatedButton.icon(
-            onPressed: _openAddDialog,
-            icon: const Icon(Icons.add_rounded, size: 18),
-            label: Text(
-              "Tambah Promo",
-              style: AppText.button.copyWith(fontSize: 13),
-            ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primary,
-              foregroundColor: Colors.white,
-              elevation: 0,
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
+          SizedBox(
+            height: 40,
+            child: ElevatedButton.icon(
+              onPressed: _openAddDialog,
+              icon: const Icon(Icons.add_rounded, size: 18),
+              label: Text(
+                "Tambah Promo",
+                style: AppText.button.copyWith(fontSize: 13),
+              ),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
+                ),
               ),
             ),
           ),
-        ),
       ],
     );
   }
@@ -487,10 +509,7 @@ class _PromoPageState extends State<PromoPage> {
   }
 
   List<Widget> _buildPageButtons() {
-    final window = _pageWindow(
-      _pagination.totalPages,
-      _pagination.currentPage,
-    );
+    final window = _pageWindow(_pagination.totalPages, _pagination.currentPage);
     final widgets = <Widget>[];
 
     for (var i = 0; i < window.length; i++) {
@@ -625,6 +644,7 @@ class _PromoRow extends StatelessWidget {
   final bool header;
   final int? no;
   final Promo? promo;
+  final Map<int, String> categoryNames;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
 
@@ -632,15 +652,36 @@ class _PromoRow extends StatelessWidget {
     : header = true,
       no = null,
       promo = null,
+      categoryNames = const {},
       onEdit = null,
       onDelete = null;
 
   const _PromoRow.data({
     required this.no,
     required this.promo,
+    required this.categoryNames,
     required this.onEdit,
     required this.onDelete,
   }) : header = false;
+
+  /// Nama kategori tempat promo ini berlaku, atau "Semua kategori" kalau
+  /// tidak dibatasi. Fallback ke "#id" kalau nama kategori belum termuat.
+  String _categoryLabel(Promo p) {
+    if (p.categoryIds.isEmpty) return "Semua kategori";
+    return p.categoryIds.map((id) => categoryNames[id] ?? "#$id").join(", ");
+  }
+
+  /// "Jam yang didapat" untuk promo Fix: jam utama + bonus jam gratis.
+  /// Promo Diskon % tidak memberi jam, jadi "-".
+  String _hoursLabel(Promo p) {
+    if (p.type != PromoType.fixed) return "-";
+    final base = p.hourGained ?? 0;
+    final free = p.freeHour ?? 0;
+    if (base == 0 && free == 0) return "-";
+    final buffer = StringBuffer("$base jam");
+    if (free > 0) buffer.write(" + $free gratis");
+    return buffer.toString();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -648,6 +689,8 @@ class _PromoRow extends StatelessWidget {
       return _row(
         no: _headerText("NO"),
         name: _headerText("NAMA PROMO"),
+        category: _headerText("KATEGORI BERLAKU"),
+        hours: _headerText("JAM DIDAPAT", alignCenter: true),
         type: _headerText("TIPE", alignCenter: true),
         value: _headerText("NILAI", alignEnd: true),
         aksi: _headerText("AKSI", alignCenter: true),
@@ -671,15 +714,12 @@ class _PromoRow extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             style: cellStyle.copyWith(fontWeight: FontWeight.w600),
           ),
-          if (p.categoryIds.isNotEmpty ||
-              (p.freeHour != null && p.freeHour! > 0) ||
+          if ((p.freeHour != null && p.freeHour! > 0) ||
               p.hasDayRestriction ||
               p.hasTimeWindow) ...[
             const SizedBox(height: 2),
             Text(
               [
-                if (p.categoryIds.isNotEmpty)
-                  "Khusus ${p.categoryIds.length} kategori meja",
                 if (p.freeHour != null && p.freeHour! > 0)
                   "Gratis ${p.freeHour} jam (pakai waktu tersimpan)",
                 if (p.hasDayRestriction)
@@ -697,6 +737,21 @@ class _PromoRow extends StatelessWidget {
             ),
           ],
         ],
+      ),
+      category: Text(
+        _categoryLabel(p),
+        maxLines: 2,
+        overflow: TextOverflow.ellipsis,
+        style: cellStyle.copyWith(
+          color: p.categoryIds.isEmpty
+              ? AppColors.textHint
+              : AppColors.textSecondary,
+        ),
+      ),
+      hours: Text(
+        _hoursLabel(p),
+        textAlign: TextAlign.center,
+        style: cellStyle.copyWith(fontWeight: FontWeight.w600),
       ),
       type: Align(
         alignment: Alignment.center,
@@ -798,6 +853,8 @@ class _PromoRow extends StatelessWidget {
   static Widget _row({
     required Widget no,
     required Widget name,
+    required Widget category,
+    required Widget hours,
     required Widget type,
     required Widget value,
     required Widget aksi,
@@ -809,9 +866,13 @@ class _PromoRow extends StatelessWidget {
         const SizedBox(width: 10),
         Expanded(flex: 3, child: name),
         const SizedBox(width: 10),
-        SizedBox(width: 100, child: type),
+        Expanded(flex: 2, child: category),
         const SizedBox(width: 10),
-        SizedBox(width: 110, child: value),
+        SizedBox(width: 110, child: hours),
+        const SizedBox(width: 10),
+        SizedBox(width: 90, child: type),
+        const SizedBox(width: 10),
+        SizedBox(width: 100, child: value),
         const SizedBox(width: 10),
         SizedBox(width: 48, child: aksi),
       ],

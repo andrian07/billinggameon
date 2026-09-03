@@ -47,6 +47,107 @@ class ReceiptPrinterService {
     );
   }
 
+  /// Prints a short dummy receipt to [device] so the operator can confirm,
+  /// straight from the printer picker, that the printer they just selected
+  /// actually prints — without saving the choice or running a real
+  /// transaction. [device] is the in-memory pick from the dialog, which may
+  /// not be the saved selection yet, so this bypasses [PrinterPreferenceStorage].
+  Future<void> printTestReceipt(PrinterDevice device) async {
+    final manager = PrinterManager();
+    try {
+      await _runTest(manager, device).timeout(
+        const Duration(seconds: 15),
+        onTimeout: () => throw const ReceiptPrinterException(
+          "Printer tidak merespon dalam 15 detik. Periksa koneksi printer, "
+          "pastikan printer menyala, lalu coba lagi.",
+        ),
+      );
+    } on PrinterException catch (e) {
+      throw ReceiptPrinterException(
+        e.cause != null ? "${e.message} — ${e.cause}" : e.message,
+      );
+    } finally {
+      unawaited(
+        manager.dispose().timeout(const Duration(seconds: 3), onTimeout: () {}),
+      );
+    }
+  }
+
+  Future<void> _runTest(PrinterManager manager, PrinterDevice device) async {
+    // LAN: connect straight to host:port, same as a real receipt print.
+    if (device is NetworkPrinterDevice) {
+      await manager.connect(device);
+      await manager.printTicket(await _buildTestTicket());
+      await manager.disconnect();
+      return;
+    }
+
+    // USB: re-scan and match by identifier so we connect through a fresh
+    // device handle from *this* manager (mirrors [_run]).
+    final printers = await manager.scanPrinters(
+      types: {PrinterConnectionType.usb},
+    );
+    if (printers.isEmpty) {
+      throw const ReceiptPrinterException(
+        "Printer USB tidak ditemukan. Pastikan printer terhubung dan menyala.",
+      );
+    }
+    final wantedId = device is UsbPrinterDevice ? device.identifier : null;
+    final match = printers.firstWhere(
+      (p) => p is UsbPrinterDevice && p.identifier == wantedId,
+      orElse: () => excludeVirtualPrinters(printers).first,
+    );
+    await manager.connect(match);
+    await manager.printTicket(await _buildTestTicket());
+    await manager.disconnect();
+  }
+
+  Future<Ticket> _buildTestTicket() async {
+    final ticket = await Ticket.create(PaperSize.mm80);
+    final now = DateTime.now();
+
+    ticket.text(
+      "TEST PRINT",
+      align: PrintAlign.center,
+      style: const PrintTextStyle(
+        bold: true,
+        height: TextSize.size2,
+        width: TextSize.size2,
+      ),
+    );
+    ticket.separator(char: '=', linesAfter: 1);
+    ticket.text("Nota dummy - bukan transaksi", align: PrintAlign.center);
+    ticket.text(
+      "${formatFullDate(now)}  ${formatClock(now)}",
+      align: PrintAlign.center,
+    );
+    ticket.separator(char: '=', linesAfter: 1);
+
+    TicketLayout.row(ticket, "Meja", "Meja 01");
+    TicketLayout.row(ticket, "Durasi", "1 jam");
+    ticket.feed(1);
+    ticket.text("Kopi Hitam", style: const PrintTextStyle(bold: true));
+    TicketLayout.row(
+      ticket,
+      "  1 x ${formatCurrency(15000)}",
+      formatCurrency(15000),
+    );
+    ticket.separator(char: '-', linesAfter: 1);
+    TicketLayout.row(ticket, "Subtotal", formatCurrency(15000));
+    TicketLayout.grandTotal(ticket, "GRAND TOTAL", 15000);
+    TicketLayout.row(ticket, "Bayar", "Tunai");
+
+    ticket.feed(1);
+    ticket.text(
+      "Jika struk ini tercetak rapi,\nprinter siap digunakan.",
+      align: PrintAlign.center,
+    );
+    ticket.feed(3);
+    ticket.cut();
+
+    return ticket;
+  }
+
   /// Shared USB scan/connect/print/disconnect flow — [buildTicket] builds
   /// whichever ticket layout the caller needs.
   Future<void> _print({
@@ -81,6 +182,17 @@ class ReceiptPrinterService {
     PrinterManager manager,
     Future<Ticket> Function() buildTicket,
   ) async {
+    final selection = await PrinterPreferenceStorage().getSelection();
+
+    // LAN printer: connect straight to the saved host:port — no scan needed
+    // (subnet discovery is slow and often finds nothing on wired networks).
+    if (selection != null && selection.isNetwork) {
+      await manager.connect(resolveSelection(const [], selection)!);
+      await manager.printTicket(await buildTicket());
+      await manager.disconnect();
+      return;
+    }
+
     final printers = await manager.scanPrinters(
       types: {PrinterConnectionType.usb},
     );
@@ -91,9 +203,7 @@ class ReceiptPrinterService {
       );
     }
 
-    final preferredId = await PrinterPreferenceStorage()
-        .getSelectedPrinterIdentifier();
-    await manager.connect(pickPrinter(printers, preferredId));
+    await manager.connect(pickPrinter(printers, selection));
     await manager.printTicket(await buildTicket());
     await manager.disconnect();
   }

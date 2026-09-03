@@ -24,16 +24,43 @@ class ProductPage extends StatefulWidget {
 class _ProductPageState extends State<ProductPage> {
   final _repository = ProductRepository();
 
+  final _searchController = TextEditingController();
+
   List<Product> _products = [];
   List<ProductCategory> _categories = [];
   List<Unit> _units = [];
   bool _loading = true;
   String? _error;
+  String _search = "";
+  bool _sortAsc = true;
 
   @override
   void initState() {
     super.initState();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  List<Product> get _filteredProducts {
+    final query = _search.trim().toLowerCase();
+    final list = query.isEmpty
+        ? List<Product>.from(_products)
+        : _products
+            .where((p) =>
+                p.name.toLowerCase().contains(query) ||
+                p.code.toLowerCase().contains(query))
+            .toList();
+
+    list.sort((a, b) {
+      final cmp = a.name.toLowerCase().compareTo(b.name.toLowerCase());
+      return _sortAsc ? cmp : -cmp;
+    });
+    return list;
   }
 
   Future<void> _load() async {
@@ -195,8 +222,13 @@ class _ProductPageState extends State<ProductPage> {
             padding: const EdgeInsets.fromLTRB(20, 18, 20, 16),
             child: _buildToolbar(),
           ),
-          const Divider(height: 1, color: AppColors.divider),
           if (!_loading && _error == null && _products.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 14),
+              child: _buildSearchBar(),
+            ),
+          const Divider(height: 1, color: AppColors.divider),
+          if (!_loading && _error == null && _filteredProducts.isNotEmpty)
             Padding(
               padding: const EdgeInsets.fromLTRB(36, 14, 36, 6),
               child: _ProductRow.header(),
@@ -204,6 +236,52 @@ class _ProductPageState extends State<ProductPage> {
           Expanded(child: _buildBody()),
         ],
       ),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Row(
+      children: [
+        Expanded(
+          child: TextField(
+            controller: _searchController,
+            onChanged: (value) => setState(() => _search = value),
+            style: AppText.body,
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: "Cari nama produk...",
+              prefixIcon: const Icon(Icons.search, size: 20),
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
+              suffixIcon: _search.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: const Icon(Icons.close, size: 18),
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() => _search = "");
+                      },
+                    ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 10),
+        OutlinedButton.icon(
+          onPressed: () => setState(() => _sortAsc = !_sortAsc),
+          icon: Icon(
+            _sortAsc ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
+            size: 16,
+          ),
+          label: Text(_sortAsc ? "A-Z" : "Z-A", style: AppText.button.copyWith(fontSize: 13)),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: AppColors.text,
+            side: const BorderSide(color: AppColors.border),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -218,12 +296,17 @@ class _ProductPageState extends State<ProductPage> {
       return _buildEmptyState();
     }
 
+    final products = _filteredProducts;
+    if (products.isEmpty) {
+      return _buildNoMatchState();
+    }
+
     return ListView.separated(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
-      itemCount: _products.length,
+      itemCount: products.length,
       separatorBuilder: (_, _) => const SizedBox(height: 10),
       itemBuilder: (context, index) {
-        final product = _products[index];
+        final product = products[index];
         return _RowCard(
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -269,7 +352,9 @@ class _ProductPageState extends State<ProductPage> {
             Text(
               _loading || _error != null
                   ? "Memuat data..."
-                  : "${_products.length} produk terdaftar",
+                  : _search.trim().isEmpty
+                      ? "${_products.length} produk terdaftar"
+                      : "${_filteredProducts.length} dari ${_products.length} produk",
               style: AppText.caption,
             ),
           ],
@@ -320,6 +405,35 @@ class _ProductPageState extends State<ProductPage> {
           ),
           const SizedBox(height: 14),
           Text("Belum ada produk ditemukan", style: AppText.bodySecondary),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNoMatchState() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 64,
+            height: 64,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: AppColors.textHint.withValues(alpha: .12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.search_off_rounded,
+              size: 30,
+              color: AppColors.textHint,
+            ),
+          ),
+          const SizedBox(height: 14),
+          Text(
+            "Tidak ada produk cocok dengan \"$_search\"",
+            style: AppText.bodySecondary,
+          ),
         ],
       ),
     );

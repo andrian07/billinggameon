@@ -39,12 +39,16 @@ class PriceRepository {
     required int price,
     required int price2,
     required int price3,
+    required int price4,
+    required int price5,
   }) {
     return _post(ApiEndpoints.editPrice, {
       "master_price_id": "$id",
       "price": "$price",
       "price_2": "$price2",
       "price_3": "$price3",
+      "price_4": "$price4",
+      "price_5": "$price5",
     });
   }
 

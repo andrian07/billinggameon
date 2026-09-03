@@ -1,5 +1,7 @@
 import 'package:unified_esc_pos_printer/unified_esc_pos_printer.dart';
 
+import 'printer_preference_storage.dart';
+
 /// On Windows, USB printer "scanning" goes through the Print Spooler and
 /// lists every installed printer — including virtual ones like "Send to
 /// OneNote", "Microsoft Print to PDF", or "Fax" — not just the physical
@@ -23,24 +25,44 @@ List<PrinterDevice> excludeVirtualPrinters(List<PrinterDevice> printers) {
   return real.isEmpty ? printers : real;
 }
 
-/// Picks which printer to connect to out of a raw (unfiltered) scan result.
+/// Rebuilds the [PrinterDevice] for a saved [PrinterSelection].
 ///
-/// Prefers the operator's saved choice — matched by [UsbPrinterDevice]
-/// identifier — since that's a deliberate pick that should win even over
-/// the virtual-printer filter. Falls back to the first non-virtual printer
-/// when there's no saved choice, or the saved one is no longer present
-/// (printer renamed/removed since it was picked).
-PrinterDevice pickPrinter(
-  List<PrinterDevice> printers,
-  String? preferredIdentifier,
+/// - Network: always synthesizes a [NetworkPrinterDevice] from the stored
+///   `host:port` — a static-IP printer must print even when subnet discovery
+///   returned nothing (wired LAN, `getWifiIP()` null, firewalled probe port).
+/// - USB: matches the stored identifier against [scanned]; returns null if
+///   the printer is no longer present (renamed/unplugged since it was picked).
+PrinterDevice? resolveSelection(
+  List<PrinterDevice> scanned,
+  PrinterSelection? selection,
 ) {
-  if (preferredIdentifier != null) {
-    for (final printer in printers) {
-      if (printer is UsbPrinterDevice &&
-          printer.identifier == preferredIdentifier) {
-        return printer;
-      }
+  if (selection == null) return null;
+  if (selection.isNetwork) {
+    return NetworkPrinterDevice(
+      name: selection.displayName,
+      host: selection.host,
+      port: selection.port,
+    );
+  }
+  for (final printer in scanned) {
+    if (printer is UsbPrinterDevice &&
+        printer.identifier == selection.identifier) {
+      return printer;
     }
   }
-  return excludeVirtualPrinters(printers).first;
+  return null;
+}
+
+/// Picks which printer to connect to out of a raw (unfiltered) scan result.
+///
+/// Prefers the operator's saved choice ([resolveSelection]) — a deliberate
+/// pick that wins even over the virtual-printer filter. Falls back to the
+/// first non-virtual printer when there's no saved choice, or the saved USB
+/// one is no longer present.
+PrinterDevice pickPrinter(
+  List<PrinterDevice> printers,
+  PrinterSelection? selection,
+) {
+  return resolveSelection(printers, selection) ??
+      excludeVirtualPrinters(printers).first;
 }

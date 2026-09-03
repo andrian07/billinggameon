@@ -120,6 +120,8 @@ class _SettingsPageState extends State<SettingsPage> {
         price: result.price,
         price2: result.price2,
         price3: result.price3,
+        price4: result.price4,
+        price5: result.price5,
       );
       if (!mounted) return;
       AppToast.success(
@@ -133,6 +135,8 @@ class _SettingsPageState extends State<SettingsPage> {
             price: result.price,
             price2: result.price2,
             price3: result.price3,
+            price4: result.price4,
+            price5: result.price5,
           );
         }
       });
@@ -143,10 +147,7 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _openPrinterSelectDialog() {
-    showDialog(
-      context: context,
-      builder: (_) => const PrinterSelectDialog(),
-    );
+    showDialog(context: context, builder: (_) => const PrinterSelectDialog());
   }
 
   @override
@@ -246,7 +247,9 @@ class _SettingsPageState extends State<SettingsPage> {
     }
 
     final grouped = _grouped;
-    const columns = 2;
+    // 1 kolom: baris harga sekarang menampilkan 5 tingkat (Harga 1..5) + kolom
+    // JAM + tombol edit, jadi butuh lebar penuh biar angka tidak terpotong.
+    const columns = 1;
     const spacing = 14.0;
 
     return SingleChildScrollView(
@@ -472,15 +475,10 @@ class _DaySection extends StatelessWidget {
     return Row(
       children: [
         SizedBox(width: 96, child: Text("JAM", style: style)),
-        Expanded(
-          child: Text("HARGA 1", textAlign: TextAlign.end, style: style),
-        ),
-        Expanded(
-          child: Text("HARGA 2", textAlign: TextAlign.end, style: style),
-        ),
-        Expanded(
-          child: Text("HARGA 3", textAlign: TextAlign.end, style: style),
-        ),
+        for (var i = 1; i <= 5; i++)
+          Expanded(
+            child: Text("HARGA $i", textAlign: TextAlign.end, style: style),
+          ),
         const SizedBox(width: 44),
       ],
     );
@@ -508,27 +506,22 @@ class _DaySection extends StatelessWidget {
               ),
             ),
           ),
-          Expanded(
-            child: Text(
-              formatCurrency(item.price),
-              textAlign: TextAlign.end,
-              style: cellStyle,
+          for (final value in [
+            item.price,
+            item.price2,
+            item.price3,
+            item.price4,
+            item.price5,
+          ])
+            Expanded(
+              child: Text(
+                formatCurrency(value),
+                textAlign: TextAlign.end,
+                style: cellStyle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
-          ),
-          Expanded(
-            child: Text(
-              formatCurrency(item.price2),
-              textAlign: TextAlign.end,
-              style: cellStyle,
-            ),
-          ),
-          Expanded(
-            child: Text(
-              formatCurrency(item.price3),
-              textAlign: TextAlign.end,
-              style: cellStyle,
-            ),
-          ),
           SizedBox(
             width: 44,
             child: IconButton(

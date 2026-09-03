@@ -1,7 +1,6 @@
-/// Harga per slot hari+jam. Backend (ms_master_price) sebenarnya menyimpan
-/// sampai 5 tingkat harga (price..price_5, dipilih lewat category_meja_price
-/// di kategori meja), tapi UI Setting > Harga hanya menampilkan & mengedit
-/// 3 tingkat pertama (Harga 1/2/3).
+/// Harga per slot hari+jam. Backend (ms_master_price) menyimpan 5 tingkat harga
+/// (price..price_5, dipilih lewat category_meja_price di kategori meja). UI
+/// Setting > Harga menampilkan & mengedit kelima tingkat (Harga 1..5).
 class PriceSetting {
   final int id;
   final String day;
@@ -9,6 +8,8 @@ class PriceSetting {
   final int price;
   final int price2;
   final int price3;
+  final int price4;
+  final int price5;
 
   const PriceSetting({
     required this.id,
@@ -17,9 +18,17 @@ class PriceSetting {
     required this.price,
     required this.price2,
     required this.price3,
+    required this.price4,
+    required this.price5,
   });
 
-  PriceSetting copyWith({int? price, int? price2, int? price3}) {
+  PriceSetting copyWith({
+    int? price,
+    int? price2,
+    int? price3,
+    int? price4,
+    int? price5,
+  }) {
     return PriceSetting(
       id: id,
       day: day,
@@ -27,6 +36,8 @@ class PriceSetting {
       price: price ?? this.price,
       price2: price2 ?? this.price2,
       price3: price3 ?? this.price3,
+      price4: price4 ?? this.price4,
+      price5: price5 ?? this.price5,
     );
   }
 
@@ -43,6 +54,8 @@ class PriceSetting {
       price: asInt(json['price']),
       price2: asInt(json['price_2']),
       price3: asInt(json['price_3']),
+      price4: asInt(json['price_4']),
+      price5: asInt(json['price_5']),
     );
   }
 }

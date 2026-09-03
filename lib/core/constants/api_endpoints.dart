@@ -139,6 +139,11 @@ class ApiEndpoints {
       "$baseUrl/Setting/edit_point_exchange";
   static const String deletePointExchange =
       "$baseUrl/Setting/delete_point_exchange";
+  static const String broadcastMember = "$baseUrl/Master/broadcast_member";
+  static const String memberApprovalStatus =
+      "$baseUrl/Master/member_approval_status";
+  static const String memberApprovalCancel =
+      "$baseUrl/Master/member_approval_cancel";
   static const String gameList = "$baseUrl/Setting/game";
   static const String addGame = "$baseUrl/Setting/add_game";
   static const String editGame = "$baseUrl/Setting/edit_game";

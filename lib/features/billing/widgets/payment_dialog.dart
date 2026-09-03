@@ -14,6 +14,8 @@ import '../../customer/data/customer_repository.dart';
 import '../../payment/data/payment_method_repository.dart';
 import '../../promo/data/promo_repository.dart';
 import '../data/billing_repository.dart';
+import '../data/member_approval_repository.dart';
+import 'member_approval_wait_dialog.dart';
 
 class PaymentResult {
   final String paymentMethod;
@@ -381,7 +383,11 @@ class _PaymentDialogState extends State<PaymentDialog> {
       final now = DateTime.now();
       final endAt = widget.table.endAt;
 
-      await _billingRepository.submitPayment(
+      // ref idempoten untuk konfirmasi PIN member (Potong Saldo + member). Sama
+      // dipakai pada percobaan pertama & percobaan ulang setelah disetujui.
+      final approvalRef = generateApprovalRef();
+
+      Future<void> pay() => _billingRepository.submitPayment(
         tableId: widget.table.id,
         mode: widget.table.sessionType,
         startTime: startAt,
@@ -402,7 +408,32 @@ class _PaymentDialogState extends State<PaymentDialog> {
             ? (endAt.isAfter(now) ? endAt.difference(now) : Duration.zero)
             : null,
         usedSavedTime: widget.table.usedSavedTime,
+        memberApprovalRef: approvalRef,
       );
+
+      try {
+        await pay();
+      } on MemberApprovalRequiredException catch (e) {
+        if (!mounted) return;
+        final outcome = await showDialog<MemberApprovalOutcome>(
+          context: context,
+          barrierDismissible: false,
+          builder: (_) => MemberApprovalWaitDialog(
+            ref: e.ref,
+            amount: e.amount == 0 ? calculation.totalTransaksi : e.amount,
+            expiresAt: e.expiresAt,
+          ),
+        );
+        if (outcome != MemberApprovalOutcome.approved) {
+          if (!mounted) return;
+          setState(() {
+            _submitting = false;
+            _submitError = _approvalMessage(outcome);
+          });
+          return;
+        }
+        await pay(); // sudah disetujui -> lanjut potong saldo & simpan
+      }
 
       if (!mounted) return;
       Navigator.of(context).pop(
@@ -421,6 +452,19 @@ class _PaymentDialogState extends State<PaymentDialog> {
         _submitting = false;
         _submitError = e.message;
       });
+    }
+  }
+
+  String _approvalMessage(MemberApprovalOutcome? o) {
+    switch (o) {
+      case MemberApprovalOutcome.rejected:
+        return "Pembayaran ditolak oleh member.";
+      case MemberApprovalOutcome.expired:
+        return "Member tidak merespon (waktu habis). Coba lagi atau ganti metode bayar.";
+      case MemberApprovalOutcome.cancelled:
+        return "Konfirmasi dibatalkan.";
+      default:
+        return "Gagal mendapatkan konfirmasi member.";
     }
   }
 

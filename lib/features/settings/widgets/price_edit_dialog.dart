@@ -11,11 +11,15 @@ class PriceEditResult {
   final int price;
   final int price2;
   final int price3;
+  final int price4;
+  final int price5;
 
   const PriceEditResult({
     required this.price,
     required this.price2,
     required this.price3,
+    required this.price4,
+    required this.price5,
   });
 }
 
@@ -46,12 +50,20 @@ class _PriceEditDialogState extends State<PriceEditDialog> {
   late final _controller3 = TextEditingController(
     text: formatThousands(widget.item.price3),
   );
+  late final _controller4 = TextEditingController(
+    text: formatThousands(widget.item.price4),
+  );
+  late final _controller5 = TextEditingController(
+    text: formatThousands(widget.item.price5),
+  );
 
   @override
   void dispose() {
     _controller.dispose();
     _controller2.dispose();
     _controller3.dispose();
+    _controller4.dispose();
+    _controller5.dispose();
     super.dispose();
   }
 
@@ -63,6 +75,8 @@ class _PriceEditDialogState extends State<PriceEditDialog> {
         price: parseThousands(_controller.text) ?? 0,
         price2: parseThousands(_controller2.text) ?? 0,
         price3: parseThousands(_controller3.text) ?? 0,
+        price4: parseThousands(_controller4.text) ?? 0,
+        price5: parseThousands(_controller5.text) ?? 0,
       ),
     );
   }
@@ -94,58 +108,15 @@ class _PriceEditDialogState extends State<PriceEditDialog> {
                 const Divider(color: AppColors.divider, height: 1),
                 const SizedBox(height: 22),
 
-                _label("Harga 1"),
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: _controller,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: const [ThousandsInputFormatter()],
-                  style: AppText.body,
-                  decoration: _inputDecoration(),
-                  validator: (value) {
-                    final parsed = parseThousands(value ?? "");
-                    if (parsed == null || parsed < 0) {
-                      return "Masukkan angka yang valid";
-                    }
-                    return null;
-                  },
-                ),
+                _priceField("Harga 1", _controller),
                 const SizedBox(height: 18),
-
-                _label("Harga 2"),
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: _controller2,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: const [ThousandsInputFormatter()],
-                  style: AppText.body,
-                  decoration: _inputDecoration(),
-                  validator: (value) {
-                    final parsed = parseThousands(value ?? "");
-                    if (parsed == null || parsed < 0) {
-                      return "Masukkan angka yang valid";
-                    }
-                    return null;
-                  },
-                ),
+                _priceField("Harga 2", _controller2),
                 const SizedBox(height: 18),
-
-                _label("Harga 3"),
-                const SizedBox(height: 8),
-                TextFormField(
-                  controller: _controller3,
-                  keyboardType: TextInputType.number,
-                  inputFormatters: const [ThousandsInputFormatter()],
-                  style: AppText.body,
-                  decoration: _inputDecoration(),
-                  validator: (value) {
-                    final parsed = parseThousands(value ?? "");
-                    if (parsed == null || parsed < 0) {
-                      return "Masukkan angka yang valid";
-                    }
-                    return null;
-                  },
-                ),
+                _priceField("Harga 3", _controller3),
+                const SizedBox(height: 18),
+                _priceField("Harga 4", _controller4),
+                const SizedBox(height: 18),
+                _priceField("Harga 5", _controller5),
 
                 const SizedBox(height: 28),
                 Row(
@@ -247,6 +218,30 @@ class _PriceEditDialogState extends State<PriceEditDialog> {
               color: AppColors.textSecondary,
             ),
           ),
+        ),
+      ],
+    );
+  }
+
+  Widget _priceField(String label, TextEditingController controller) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _label(label),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: controller,
+          keyboardType: TextInputType.number,
+          inputFormatters: const [ThousandsInputFormatter()],
+          style: AppText.body,
+          decoration: _inputDecoration(),
+          validator: (value) {
+            final parsed = parseThousands(value ?? "");
+            if (parsed == null || parsed < 0) {
+              return "Masukkan angka yang valid";
+            }
+            return null;
+          },
         ),
       ],
     );

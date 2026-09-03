@@ -19,6 +19,7 @@ import '../../features/report/purchase_report_page.dart';
 import '../../features/report/saldo_report_page.dart';
 import '../../features/report/stock_report_page.dart';
 import '../../features/role/role_page.dart';
+import '../../features/settings/broadcast_page.dart';
 import '../../features/settings/change_password_page.dart';
 import '../../features/settings/game_page.dart';
 import '../../features/settings/point_exchange_page.dart';
@@ -184,6 +185,10 @@ final appRouter = GoRouter(
     GoRoute(
       path: "/setting/game",
       pageBuilder: (context, state) => _fadeThroughPage(const GamePage()),
+    ),
+    GoRoute(
+      path: "/setting/broadcast",
+      pageBuilder: (context, state) => _fadeThroughPage(const BroadcastPage()),
     ),
     GoRoute(
       path: "/setting/point-exchange",

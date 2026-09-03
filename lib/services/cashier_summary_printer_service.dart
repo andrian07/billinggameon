@@ -67,6 +67,16 @@ class CashierSummaryPrinterService {
     PrinterManager manager,
     Future<Ticket> Function() buildTicket,
   ) async {
+    final selection = await PrinterPreferenceStorage().getSelection();
+
+    // LAN printer: connect straight to the saved host:port — no scan needed.
+    if (selection != null && selection.isNetwork) {
+      await manager.connect(resolveSelection(const [], selection)!);
+      await manager.printTicket(await buildTicket());
+      await manager.disconnect();
+      return;
+    }
+
     final printers = await manager.scanPrinters(
       types: {PrinterConnectionType.usb},
     );
@@ -77,9 +87,7 @@ class CashierSummaryPrinterService {
       );
     }
 
-    final preferredId = await PrinterPreferenceStorage()
-        .getSelectedPrinterIdentifier();
-    await manager.connect(pickPrinter(printers, preferredId));
+    await manager.connect(pickPrinter(printers, selection));
     await manager.printTicket(await buildTicket());
     await manager.disconnect();
   }

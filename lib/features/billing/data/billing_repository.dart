@@ -6,6 +6,7 @@ import '../../../core/constants/api_endpoints.dart';
 import '../../../core/utils/formatters.dart';
 import '../../../models/pool_table.dart';
 import '../../../models/saved_customer_time.dart';
+import 'member_approval_repository.dart';
 
 class BillingRepositoryException implements Exception {
   final String message;
@@ -244,8 +245,9 @@ class BillingRepository {
     bool? saveTime,
     Duration? remainingTime,
     bool? usedSavedTime,
+    String? memberApprovalRef,
   }) async {
-    await _post(ApiEndpoints.payment, {
+    final data = await _post(ApiEndpoints.payment, {
       if (mode != null)
         "transaction_mode": mode == SessionType.timer ? "Timer" : "Reguler",
       if (customerId != null) "transaction_customer_id": "$customerId",
@@ -265,7 +267,18 @@ class BillingRepository {
       if (saveTime != null) "save_time": saveTime ? "Y" : "N",
       if (usedSavedTime != null)
         "used_save_time": usedSavedTime ? "Y" : "N",
+      if (memberApprovalRef != null)
+        "member_approval_ref": memberApprovalRef,
     });
+
+    // Potong Saldo + member: backend menahan pembayaran sampai member konfirmasi PIN
+    if (data['result'] == 'NEED_MEMBER_APPROVAL') {
+      final approval = data['approval'];
+      throw MemberApprovalRequiredException.fromApproval(
+        memberApprovalRef ?? "",
+        approval is Map<String, dynamic> ? approval : null,
+      );
+    }
   }
 
   Future<Map<String, dynamic>> _post(
