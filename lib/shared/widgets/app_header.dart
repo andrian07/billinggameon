@@ -35,7 +35,6 @@ class AppHeader extends StatefulWidget {
 class _AppHeaderState extends State<AppHeader> {
   String _username = "";
   String _roleName = "";
-  bool _isOwner = false;
 
   @override
   void initState() {
@@ -45,12 +44,10 @@ class _AppHeaderState extends State<AppHeader> {
 
   Future<void> _loadSession() async {
     final session = await SessionStorage().getSession();
-    final isOwner = await SessionStorage().isSuperadmin();
     if (!mounted) return;
     setState(() {
       _username = session?['username']?.toString() ?? "";
       _roleName = session?['roleName']?.toString() ?? "";
-      _isOwner = isOwner;
     });
   }
 
@@ -141,22 +138,21 @@ class _AppHeaderState extends State<AppHeader> {
             ),
           ),
 
-          if (_isOwner) ...[
-            const SizedBox(width: 8),
-            OutlinedButton.icon(
-              onPressed: () => _openTutupKas(context),
-              icon: const Icon(Icons.summarize_rounded, size: 18),
-              label: const Text("Tutup Kas"),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.textSecondary,
-                side: const BorderSide(color: AppColors.border),
-                padding: const EdgeInsets.symmetric(horizontal: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
-                ),
+          const SizedBox(width: 8),
+
+          OutlinedButton.icon(
+            onPressed: () => _openTutupKas(context),
+            icon: const Icon(Icons.summarize_rounded, size: 18),
+            label: const Text("Tutup Kas"),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.textSecondary,
+              side: const BorderSide(color: AppColors.border),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
               ),
             ),
-          ],
+          ),
 
           const SizedBox(width: 8),
 

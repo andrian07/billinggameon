@@ -54,13 +54,25 @@ class PurchaseItem {
   final int qty;
   final int subTotal;
 
+  /// HPP (harga pokok / moving-average COGS) produk sebelum & sesudah baris
+  /// pembelian ini diterapkan. Dipakai untuk hitung keuntungan (harga jual −
+  /// HPP). 0 pada pembelian lama sebelum fitur ini ada.
+  final int cogsBefore;
+  final int cogsAfter;
+
   const PurchaseItem({
     required this.productId,
     required this.productName,
     required this.price,
     required this.qty,
     required this.subTotal,
+    this.cogsBefore = 0,
+    this.cogsAfter = 0,
   });
+
+  /// HPP naik akibat baris pembelian ini (harga beli lebih tinggi dari
+  /// rata-rata stok lama).
+  bool get cogsIncreased => cogsAfter > cogsBefore && cogsBefore > 0;
 
   factory PurchaseItem.fromJson(Map<String, dynamic> json) {
     return PurchaseItem(
@@ -69,6 +81,8 @@ class PurchaseItem {
       price: _asInt(json['price']),
       qty: _asInt(json['qty']),
       subTotal: _asInt(json['sub_total']),
+      cogsBefore: _asInt(json['cogs_before']),
+      cogsAfter: _asInt(json['cogs_after']),
     );
   }
 }

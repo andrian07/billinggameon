@@ -567,61 +567,116 @@ class _PurchaseAddPageState extends State<PurchaseAddPage> {
         borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
         border: Border.all(color: AppColors.border),
       ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Expanded(flex: 5, child: _buildProductSearchField(row)),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: 80,
-            child: TextFormField(
-              controller: row.qtyController,
-              keyboardType: TextInputType.number,
-              textAlign: TextAlign.center,
-              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              style: AppText.body,
-              decoration: _inputDecoration(hint: "Qty"),
-              onChanged: (_) => setState(() {}),
-            ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(flex: 5, child: _buildProductSearchField(row)),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 80,
+                child: TextFormField(
+                  controller: row.qtyController,
+                  keyboardType: TextInputType.number,
+                  textAlign: TextAlign.center,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  style: AppText.body,
+                  decoration: _inputDecoration(hint: "Qty"),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 150,
+                child: TextFormField(
+                  controller: row.priceController,
+                  keyboardType: TextInputType.number,
+                  textAlign: TextAlign.end,
+                  inputFormatters: const [ThousandsInputFormatter()],
+                  style: AppText.body,
+                  decoration: _inputDecoration(hint: "Harga"),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 140,
+                child: Text(
+                  formatCurrency(row.subTotal),
+                  textAlign: TextAlign.end,
+                  style: AppText.body.copyWith(fontWeight: FontWeight.w600),
+                ),
+              ),
+              SizedBox(
+                width: 32,
+                child: _rows.length > 1
+                    ? InkWell(
+                        onTap: () => _removeRow(index),
+                        borderRadius: BorderRadius.circular(8),
+                        child: Padding(
+                          padding: const EdgeInsets.all(4),
+                          child: Icon(
+                            Icons.close_rounded,
+                            size: 18,
+                            color: AppColors.danger.withValues(alpha: .8),
+                          ),
+                        ),
+                      )
+                    : null,
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: 150,
-            child: TextFormField(
-              controller: row.priceController,
-              keyboardType: TextInputType.number,
-              textAlign: TextAlign.end,
-              inputFormatters: const [ThousandsInputFormatter()],
-              style: AppText.body,
-              decoration: _inputDecoration(hint: "Harga"),
-              onChanged: (_) => setState(() {}),
-            ),
+          _buildHppPreview(row),
+        ],
+      ),
+    );
+  }
+
+  /// Perkiraan HPP (harga pokok / rata-rata bergerak) produk SETELAH baris
+  /// pembelian ini disimpan — angka final dihitung ulang di server, ini
+  /// hanya pratinjau: (stok_lama * HPP_lama + qty * harga) / (stok_lama + qty).
+  Widget _buildHppPreview(_PurchaseItemRow row) {
+    final product = row.product;
+    if (product == null || row.qty <= 0 || row.price <= 0) {
+      return const SizedBox.shrink();
+    }
+
+    final oldHpp = product.cogs;
+    final newStock = product.stock + row.qty;
+    final newHpp = (product.stock <= 0 || newStock <= 0)
+        ? row.price
+        : ((product.stock * oldHpp + row.qty * row.price) / newStock).round();
+
+    final up = newHpp > oldHpp && oldHpp > 0;
+    final changed = newHpp != oldHpp && oldHpp > 0;
+    final color = up
+        ? AppColors.warning
+        : (changed ? AppColors.success : AppColors.textHint);
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8, left: 2),
+      child: Row(
+        children: [
+          Icon(
+            up
+                ? Icons.trending_up_rounded
+                : (changed
+                      ? Icons.trending_down_rounded
+                      : Icons.trending_flat_rounded),
+            size: 14,
+            color: color,
           ),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: 140,
-            child: Text(
-              formatCurrency(row.subTotal),
-              textAlign: TextAlign.end,
-              style: AppText.body.copyWith(fontWeight: FontWeight.w600),
+          const SizedBox(width: 6),
+          Text(
+            changed
+                ? "HPP baru: ${formatThousands(oldHpp)} → ${formatThousands(newHpp)} / ${product.unitName ?? 'unit'}"
+                : "HPP: ${formatCurrency(newHpp)}",
+            style: AppText.caption.copyWith(
+              color: color,
+              fontWeight: up ? FontWeight.w600 : FontWeight.w400,
             ),
-          ),
-          SizedBox(
-            width: 32,
-            child: _rows.length > 1
-                ? InkWell(
-                    onTap: () => _removeRow(index),
-                    borderRadius: BorderRadius.circular(8),
-                    child: Padding(
-                      padding: const EdgeInsets.all(4),
-                      child: Icon(
-                        Icons.close_rounded,
-                        size: 18,
-                        color: AppColors.danger.withValues(alpha: .8),
-                      ),
-                    ),
-                  )
-                : null,
           ),
         ],
       ),

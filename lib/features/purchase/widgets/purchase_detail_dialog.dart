@@ -308,6 +308,7 @@ class _PurchaseDetailDialogState extends State<PurchaseDetailDialog> {
                 "${item.qty} x ${formatCurrency(item.price)}",
                 style: AppText.caption,
               ),
+              if (item.cogsAfter > 0) _buildHppLine(item),
             ],
           ),
         ),
@@ -316,6 +317,39 @@ class _PurchaseDetailDialogState extends State<PurchaseDetailDialog> {
           style: AppText.body.copyWith(fontWeight: FontWeight.w600),
         ),
       ],
+    );
+  }
+
+  Widget _buildHppLine(PurchaseItem item) {
+    final up = item.cogsIncreased;
+    final color = up ? AppColors.warning : AppColors.textHint;
+    final changed = item.cogsAfter != item.cogsBefore && item.cogsBefore > 0;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Row(
+        children: [
+          Icon(
+            up
+                ? Icons.trending_up_rounded
+                : (changed
+                      ? Icons.trending_down_rounded
+                      : Icons.trending_flat_rounded),
+            size: 13,
+            color: color,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            changed
+                ? "HPP ${formatThousands(item.cogsBefore)} → ${formatThousands(item.cogsAfter)}"
+                : "HPP ${formatCurrency(item.cogsAfter)}",
+            style: AppText.caption.copyWith(
+              color: color,
+              fontWeight: up ? FontWeight.w600 : FontWeight.w400,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
