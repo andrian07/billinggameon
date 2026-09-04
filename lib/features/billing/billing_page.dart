@@ -465,7 +465,8 @@ class _BillingPageState extends State<BillingPage> {
         ),
         title: Text("Batalkan Transaksi?", style: AppText.title),
         content: Text(
-          "Sesi ${table.name} akan dibatalkan dan meja menjadi kosong kembali.",
+          "Sesi ${table.name} akan dibatalkan dan meja menjadi kosong kembali."
+          "${table.usedSavedTime == true ? " Waktu tersimpan yang dipakai akan dikembalikan ke member." : ""}",
           style: AppText.bodySecondary,
         ),
         actions: [

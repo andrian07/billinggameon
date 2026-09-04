@@ -193,7 +193,12 @@ class AppSidebar extends StatelessWidget {
               // Ganti Password is a personal action every account needs
               // regardless of role permissions, not something to gate
               // behind the menu-access system — always shown, like Keluar.
+              // Booking Room is likewise always shown: member self-service
+              // bookings need to reach whichever cashier is on shift, so
+              // it can't be hidden behind a role that hasn't been granted
+              // menu access to it.
               if (item.menuKey == 'ganti_password' ||
+                  item.menuKey == 'booking' ||
                   allowed.contains(item.menuKey))
                 item,
           ],
