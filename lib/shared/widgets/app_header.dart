@@ -6,6 +6,7 @@ import '../../core/theme/app_colors.dart';
 import '../../core/theme/app_text.dart';
 import '../../features/attendance/widgets/absensi_scan_dialog.dart';
 import '../../features/billing/data/billing_repository.dart';
+import '../../features/cashier/widgets/expense_dialog.dart';
 import '../../features/cashier/widgets/tutup_kas_dialog.dart';
 import '../../features/topup/widgets/topup_requests_dialog.dart';
 import '../../services/booking_watcher.dart';
@@ -109,6 +110,22 @@ class _AppHeaderState extends State<AppHeader> {
             ),
             const SizedBox(width: 8),
           ],
+
+          OutlinedButton.icon(
+            onPressed: () => _openExpense(context),
+            icon: const Icon(Icons.payments_outlined, size: 18),
+            label: const Text("Pengeluaran"),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.textSecondary,
+              side: const BorderSide(color: AppColors.border),
+              padding: const EdgeInsets.symmetric(horizontal: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
+              ),
+            ),
+          ),
+
+          const SizedBox(width: 8),
 
           OutlinedButton.icon(
             onPressed: () => _openAbsensiScan(context),
@@ -226,6 +243,22 @@ class _AppHeaderState extends State<AppHeader> {
     showDialog(
       context: context,
       builder: (_) => const AbsensiScanDialog(),
+    );
+  }
+
+  Future<void> _openExpense(BuildContext context) async {
+    final session = await SessionStorage().getSession();
+    final userId = int.tryParse(session?['id']?.toString() ?? "") ?? 0;
+    final cashierName = session?['username']?.toString() ?? "Kasir";
+
+    if (!context.mounted) return;
+    if (userId == 0) {
+      AppToast.error(context, "Sesi tidak valid, silakan login ulang.");
+      return;
+    }
+    showDialog(
+      context: context,
+      builder: (_) => ExpenseDialog(userId: userId, cashierName: cashierName),
     );
   }
 

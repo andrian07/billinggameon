@@ -46,6 +46,12 @@ class CashierTransactionSummary {
     invoiceCount: 0,
   );
 
+  /// Bagian yang dibayar TUNAI (payment "CASH") — dasar rekonsiliasi laci kas
+  /// di Tutup Kas, tempat pengeluaran kas dikurangkan.
+  int get cashTotal => byPayment
+      .where((p) => p.paymentName.trim().toUpperCase() == "CASH")
+      .fold(0, (sum, p) => sum + p.totalTransaction);
+
   factory CashierTransactionSummary.fromJson(Map<String, dynamic> json) {
     int asInt(dynamic value) {
       if (value is int) return value;
@@ -84,6 +90,46 @@ class CafeItemSold {
   }
 }
 
+/// Which cash drawer an expense is deducted from at Tutup Kas.
+enum ExpenseChannel { billing, cafe }
+
+ExpenseChannel expenseChannelFromString(String? raw) =>
+    raw == "cafe" ? ExpenseChannel.cafe : ExpenseChannel.billing;
+
+/// One cash expense (keterangan + nominal) a cashier logged during the shift.
+/// At Tutup Kas its nominal is subtracted from the CASH total of [channel]
+/// (revenue / Grand Total is untouched).
+class CashExpense {
+  final int id;
+  final String keterangan;
+  final int nominal;
+  final ExpenseChannel channel;
+  final DateTime? createdAt;
+
+  const CashExpense({
+    required this.id,
+    required this.keterangan,
+    required this.nominal,
+    required this.channel,
+    this.createdAt,
+  });
+
+  factory CashExpense.fromJson(Map<String, dynamic> json) {
+    int asInt(dynamic value) {
+      if (value is int) return value;
+      return int.tryParse(value?.toString() ?? "") ?? 0;
+    }
+
+    return CashExpense(
+      id: asInt(json['id']),
+      keterangan: json['keterangan']?.toString() ?? "",
+      nominal: asInt(json['nominal']),
+      channel: expenseChannelFromString(json['channel']?.toString()),
+      createdAt: DateTime.tryParse(json['created_at']?.toString() ?? ""),
+    );
+  }
+}
+
 /// Today's transaction summary for a logged-in cashier, combining billing
 /// (pool table), cafe/POS sales, and saldo top-ups — read via
 /// Report/get_transaction_today_by_cashier for the "Tutup Kas" flow.
@@ -94,6 +140,7 @@ class CashierClosingSummary {
   final CashierTransactionSummary cafe;
   final CashierTransactionSummary saldo;
   final List<CafeItemSold> cafeItems;
+  final List<CashExpense> expenses;
 
   const CashierClosingSummary({
     required this.businessDate,
@@ -102,7 +149,23 @@ class CashierClosingSummary {
     required this.cafe,
     this.saldo = CashierTransactionSummary.empty,
     this.cafeItems = const [],
+    this.expenses = const [],
   });
+
+  int get expenseTotalBilling => expenses
+      .where((e) => e.channel == ExpenseChannel.billing)
+      .fold(0, (sum, e) => sum + e.nominal);
+
+  int get expenseTotalCafe => expenses
+      .where((e) => e.channel == ExpenseChannel.cafe)
+      .fold(0, (sum, e) => sum + e.nominal);
+
+  int get expenseTotal => expenseTotalBilling + expenseTotalCafe;
+
+  /// Tunai bersih per channel = pembayaran CASH − pengeluaran kas channel itu
+  /// (boleh minus kalau pengeluaran melebihi tunai yang masuk).
+  int get billingNetCash => billing.cashTotal - expenseTotalBilling;
+  int get cafeNetCash => cafe.cashTotal - expenseTotalCafe;
 
   /// Billing + cafe sales only — saldo top-ups are deposits, not revenue,
   /// so they're shown as their own section rather than folded into this.
@@ -121,6 +184,7 @@ class CashierClosingSummary {
     final cafeJson = json['cafe'];
     final saldoJson = json['saldo'];
     final cafeItemsJson = json['cafe_items'];
+    final expensesJson = json['expenses'];
 
     return CashierClosingSummary(
       businessDate:
@@ -140,6 +204,12 @@ class CashierClosingSummary {
           ? cafeItemsJson
                 .whereType<Map<String, dynamic>>()
                 .map(CafeItemSold.fromJson)
+                .toList()
+          : const [],
+      expenses: expensesJson is List
+          ? expensesJson
+                .whereType<Map<String, dynamic>>()
+                .map(CashExpense.fromJson)
                 .toList()
           : const [],
     );

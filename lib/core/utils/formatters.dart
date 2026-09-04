@@ -54,6 +54,24 @@ String formatFullDate(DateTime date) {
   return "$day ${_indonesianMonths[date.month - 1]} ${date.year}";
 }
 
+const _indonesianDays = [
+  'Senin',
+  'Selasa',
+  'Rabu',
+  'Kamis',
+  'Jumat',
+  'Sabtu',
+  'Minggu',
+];
+
+/// Nama hari dalam bahasa Indonesia untuk [date] (mis. "Senin").
+/// [DateTime.weekday] mengembalikan 1 (Senin) .. 7 (Minggu).
+String formatWeekday(DateTime date) => _indonesianDays[date.weekday - 1];
+
+/// "Senin, 08 September 2026" — nama hari + tanggal lengkap.
+String formatWeekdayFullDate(DateTime date) =>
+    "${formatWeekday(date)}, ${formatFullDate(date)}";
+
 String formatDuration(Duration duration) {
   final clamped = duration.isNegative ? Duration.zero : duration;
   String two(int n) => n.toString().padLeft(2, '0');

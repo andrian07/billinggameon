@@ -279,6 +279,8 @@ class _TutupKasDialogState extends State<TutupKasDialog> {
                 icon: Icons.table_bar_rounded,
                 title: "Billing",
                 summary: summary.billing,
+                expenseTotal: summary.expenseTotalBilling,
+                netCash: summary.billingNetCash,
               ),
             ),
             const SizedBox(width: 10),
@@ -287,6 +289,8 @@ class _TutupKasDialogState extends State<TutupKasDialog> {
                 icon: Icons.point_of_sale_rounded,
                 title: "Cafe / POS",
                 summary: summary.cafe,
+                expenseTotal: summary.expenseTotalCafe,
+                netCash: summary.cafeNetCash,
               ),
             ),
             const SizedBox(width: 10),
@@ -299,6 +303,10 @@ class _TutupKasDialogState extends State<TutupKasDialog> {
             ),
           ],
         ),
+        if (summary.expenses.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          _buildExpenses(summary),
+        ],
         const SizedBox(height: 14),
         const Divider(color: AppColors.divider, height: 1),
         const SizedBox(height: 14),
@@ -336,11 +344,98 @@ class _TutupKasDialogState extends State<TutupKasDialog> {
     );
   }
 
+  Widget _buildExpenses(CashierClosingSummary summary) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.danger.withValues(alpha: .06),
+        borderRadius: BorderRadius.circular(AppSizes.radiusMedium),
+        border: Border.all(color: AppColors.danger.withValues(alpha: .2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(
+                Icons.payments_outlined,
+                size: 16,
+                color: AppColors.danger,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                "Pengeluaran Kas",
+                style: AppText.bodySecondary.copyWith(
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          for (final e in summary.expenses)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.card,
+                      borderRadius: BorderRadius.circular(5),
+                      border: Border.all(color: AppColors.border),
+                    ),
+                    child: Text(
+                      e.channel == ExpenseChannel.cafe ? "Cafe" : "Billing",
+                      style: AppText.caption.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      e.keterangan,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppText.caption,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    "-${formatCurrency(e.nominal)}",
+                    style: AppText.caption.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.danger,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          const SizedBox(height: 4),
+          const Divider(color: AppColors.divider, height: 1),
+          const SizedBox(height: 6),
+          _cardKv(
+            "Total Pengeluaran",
+            "-${formatCurrency(summary.expenseTotal)}",
+            color: AppColors.danger,
+            bold: true,
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _sectionCard({
     required IconData icon,
     required String title,
     required CashierTransactionSummary summary,
+    int? expenseTotal,
+    int? netCash,
   }) {
+    final showRecon = (expenseTotal ?? 0) > 0;
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -386,12 +481,30 @@ class _TutupKasDialogState extends State<TutupKasDialog> {
               ),
             ],
           ],
+          if (showRecon) ...[
+            const SizedBox(height: 8),
+            const Divider(color: AppColors.divider, height: 1),
+            const SizedBox(height: 8),
+            _cardKv("Tunai (CASH)", formatCurrency(summary.cashTotal)),
+            const SizedBox(height: 4),
+            _cardKv(
+              "Pengeluaran",
+              "-${formatCurrency(expenseTotal!)}",
+              color: AppColors.danger,
+            ),
+            const SizedBox(height: 4),
+            _cardKv(
+              "Tunai Bersih",
+              formatCurrency(netCash ?? (summary.cashTotal - expenseTotal)),
+              bold: true,
+            ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _cardKv(String label, String value, {Color? color}) {
+  Widget _cardKv(String label, String value, {Color? color, bool bold = false}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
@@ -400,7 +513,10 @@ class _TutupKasDialogState extends State<TutupKasDialog> {
             label,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: AppText.caption.copyWith(color: color),
+            style: AppText.caption.copyWith(
+              color: color,
+              fontWeight: bold ? FontWeight.w700 : null,
+            ),
           ),
         ),
         const SizedBox(width: 6),
@@ -409,7 +525,7 @@ class _TutupKasDialogState extends State<TutupKasDialog> {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: AppText.caption.copyWith(
-            fontWeight: FontWeight.w600,
+            fontWeight: bold ? FontWeight.w700 : FontWeight.w600,
             color: color,
           ),
         ),

@@ -34,6 +34,49 @@ class CashierRepository {
     return CashierClosingSummary.fromJson(result);
   }
 
+  /// Records one cash expense for [userId]'s shift. [channel] picks which
+  /// drawer it's deducted from at Tutup Kas (billing vs cafe).
+  Future<void> addExpense({
+    required int userId,
+    required String keterangan,
+    required int nominal,
+    required ExpenseChannel channel,
+  }) {
+    return _post(ApiEndpoints.addCashExpense, {
+      "user_id": userId,
+      "keterangan": keterangan,
+      "nominal": nominal,
+      "channel": channel == ExpenseChannel.cafe ? "cafe" : "billing",
+    });
+  }
+
+  /// Today's cash expenses logged by [userId] (drives the list in the
+  /// expense dialog; Tutup Kas gets the same data folded into its summary).
+  Future<List<CashExpense>> getExpensesToday({required int userId}) async {
+    final data = await _post(ApiEndpoints.cashExpensesToday, {
+      "user_id": userId,
+    });
+
+    final result = data['result'];
+    final list = result is Map<String, dynamic> ? result['data'] : null;
+    if (list is! List) return const [];
+
+    return list
+        .whereType<Map<String, dynamic>>()
+        .map(CashExpense.fromJson)
+        .toList();
+  }
+
+  Future<void> deleteExpense({
+    required int expenseId,
+    required int userId,
+  }) {
+    return _post(ApiEndpoints.deleteCashExpense, {
+      "cash_expense_id": expenseId,
+      "user_id": userId,
+    });
+  }
+
   Future<Map<String, dynamic>> _post(
     String url,
     Map<String, dynamic> payload,

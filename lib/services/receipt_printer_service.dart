@@ -47,6 +47,58 @@ class ReceiptPrinterService {
     );
   }
 
+  /// Slip cetak untuk booking room yang baru masuk dari aplikasi member —
+  /// dicetak otomatis oleh [BookingWatcher] begitu booking terdeteksi, biar
+  /// kasir langsung tahu ruangan mana yang harus disiapkan. Formatnya sengaja
+  /// ringkas: Nama / Hari / Jam / Jumlah Jam / Ruangan.
+  Future<void> printBookingSlip({
+    required String customerName,
+    required DateTime start,
+    required int durationHours,
+    required String roomLabel,
+  }) {
+    return _print(
+      buildTicket: () => _buildBookingSlipTicket(
+        customerName: customerName,
+        start: start,
+        durationHours: durationHours,
+        roomLabel: roomLabel,
+      ),
+    );
+  }
+
+  Future<Ticket> _buildBookingSlipTicket({
+    required String customerName,
+    required DateTime start,
+    required int durationHours,
+    required String roomLabel,
+  }) async {
+    final ticket = await Ticket.create(PaperSize.mm80);
+
+    ticket.text(
+      "BOOKING ROOM",
+      align: PrintAlign.center,
+      style: const PrintTextStyle(bold: true),
+    );
+    ticket.text(
+      "Masuk ${formatFullDate(DateTime.now())} ${formatClock(DateTime.now())}",
+      align: PrintAlign.center,
+    );
+    ticket.separator(char: '=', linesAfter: 1);
+
+    TicketLayout.row(ticket, "Nama", customerName);
+    TicketLayout.row(ticket, "Hari", formatWeekdayFullDate(start));
+    TicketLayout.row(ticket, "Jam", formatTime(start));
+    TicketLayout.row(ticket, "Jumlah Jam", "$durationHours jam");
+    TicketLayout.row(ticket, "Ruangan", roomLabel);
+
+    ticket.separator(char: '=', linesAfter: 1);
+    ticket.feed(3);
+    ticket.cut();
+
+    return ticket;
+  }
+
   /// Prints a short dummy receipt to [device] so the operator can confirm,
   /// straight from the printer picker, that the printer they just selected
   /// actually prints — without saving the choice or running a real

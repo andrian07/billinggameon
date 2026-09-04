@@ -116,6 +116,12 @@ class CashierSummaryPrinterService {
       formatCurrency(summary.billing.totalTransaction),
     );
     _byPayment(ticket, summary.billing.byPayment);
+    _cashRecon(
+      ticket,
+      cash: summary.billing.cashTotal,
+      expense: summary.expenseTotalBilling,
+      net: summary.billingNetCash,
+    );
 
     TicketLayout.sectionTitle(ticket, "Cafe / POS");
     TicketLayout.row(ticket, "Jumlah Nota", "${summary.cafe.invoiceCount}");
@@ -125,6 +131,12 @@ class CashierSummaryPrinterService {
       formatCurrency(summary.cafe.totalTransaction),
     );
     _byPayment(ticket, summary.cafe.byPayment);
+    _cashRecon(
+      ticket,
+      cash: summary.cafe.cashTotal,
+      expense: summary.expenseTotalCafe,
+      net: summary.cafeNetCash,
+    );
 
     TicketLayout.sectionTitle(ticket, "Pengisian Saldo");
     TicketLayout.row(ticket, "Jumlah Nota", "${summary.saldo.invoiceCount}");
@@ -134,6 +146,23 @@ class CashierSummaryPrinterService {
       formatCurrency(summary.saldo.totalTransaction),
     );
     _byPayment(ticket, summary.saldo.byPayment);
+
+    if (summary.expenses.isNotEmpty) {
+      TicketLayout.sectionTitle(ticket, "Pengeluaran Kas");
+      for (final e in summary.expenses) {
+        final tag = e.channel == ExpenseChannel.cafe ? "[Cafe] " : "[Bil] ";
+        TicketLayout.row(
+          ticket,
+          "$tag${e.keterangan}",
+          "-${formatCurrency(e.nominal)}",
+        );
+      }
+      TicketLayout.row(
+        ticket,
+        "Total Pengeluaran",
+        "-${formatCurrency(summary.expenseTotal)}",
+      );
+    }
 
     ticket.separator(char: '-', linesAfter: 1);
     TicketLayout.row(ticket, "Total Nota", "${summary.totalInvoiceCount}");
@@ -179,6 +208,20 @@ class CashierSummaryPrinterService {
     ticket.cut();
 
     return ticket;
+  }
+
+  /// Tunai bersih channel = tunai (CASH) − pengeluaran kas channel itu.
+  /// Hanya dicetak kalau ada pengeluaran di channel tsb.
+  void _cashRecon(
+    Ticket ticket, {
+    required int cash,
+    required int expense,
+    required int net,
+  }) {
+    if (expense <= 0) return;
+    TicketLayout.row(ticket, "  Tunai (CASH)", formatCurrency(cash));
+    TicketLayout.row(ticket, "  Pengeluaran", "-${formatCurrency(expense)}");
+    TicketLayout.row(ticket, "  Tunai Bersih", formatCurrency(net));
   }
 
   void _byPayment(Ticket ticket, List<CashierPaymentBreakdown> byPayment) {

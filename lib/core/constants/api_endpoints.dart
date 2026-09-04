@@ -163,6 +163,9 @@ class ApiEndpoints {
   // Report
   static const String transactionTodayByCashier =
       "$baseUrl/Report/get_transaction_today_by_cashier";
+  static const String addCashExpense = "$baseUrl/Report/add_cash_expense";
+  static const String cashExpensesToday = "$baseUrl/Report/cash_expenses_today";
+  static const String deleteCashExpense = "$baseUrl/Report/delete_cash_expense";
   static const String billingReport = "$baseUrl/Report/billing_report";
   static const String cafeReport = "$baseUrl/Report/cafe_report";
   static const String saldoReport = "$baseUrl/Report/saldo_report";

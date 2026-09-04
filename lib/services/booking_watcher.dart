@@ -2,11 +2,12 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart'
-    show ValueListenable, ValueNotifier, kIsWeb;
+    show ValueListenable, ValueNotifier, debugPrint, kIsWeb;
 import 'package:local_notifier/local_notifier.dart';
 
 import '../features/booking/data/booking_repository.dart';
 import '../models/booking_request.dart';
+import 'receipt_printer_service.dart';
 import 'session_storage.dart';
 
 /// Polls billing_api for member self-service booking room requests in the
@@ -34,6 +35,17 @@ class BookingWatcher {
   bool _checking = false;
   bool _notifierReady = false;
 
+  /// Sudah pernah menarik daftar booking sekali sejak login. Booking yang
+  /// sudah ada SEBELUM watcher jalan bukan "booking baru masuk", jadi tidak
+  /// dicetak ulang saat app baru dibuka — hanya di-seed ke
+  /// [_printedBookingRequestIds]. Di-reset saat logout ([stop]).
+  bool _printPrimed = false;
+
+  /// booking_request_id yang slip cetaknya sudah pernah dikirim ke printer di
+  /// sesi ini — supaya 1 booking hanya tercetak sekali walau terus muncul di
+  /// tiap poll selama belum dilayani. Di-reset saat logout ([stop]).
+  final Set<int> _printedBookingRequestIds = <int>{};
+
   /// booking_notification_id yang sudah pernah memunculkan notifikasi OS di
   /// sesi ini - supaya 1 booking hanya "ding" sekali, bukan tiap poll
   /// selama masih belum dibaca. Di-reset saat logout ([stop]).
@@ -59,6 +71,8 @@ class BookingWatcher {
     _timer = null;
     _unreadCount.value = 0;
     _notifiedIds.clear();
+    _printPrimed = false;
+    _printedBookingRequestIds.clear();
     _lastSyncAt.value = null;
   }
 
@@ -90,6 +104,7 @@ class BookingWatcher {
         // (yang jamnya sudah lewat total tidak dihitung - lihat isExpired)
         _unreadCount.value = bookings.where((b) => !b.isExpired).length;
         _lastSyncAt.value = DateTime.now();
+        await _autoPrintNewBookings(bookings);
       }
 
       // Notifikasi OS: sekali per booking baru yang belum dibaca sesi ini.
@@ -114,6 +129,54 @@ class BookingWatcher {
       // gagal ambil branch dsb - coba lagi tick berikutnya
     } finally {
       _checking = false;
+    }
+  }
+
+  /// Cetak slip untuk tiap booking yang baru muncul di daftar aktif sejak
+  /// watcher jalan. Poll pertama hanya nge-seed daftar "sudah dicetak" tanpa
+  /// mencetak apa pun (booking lama bukan "baru masuk").
+  Future<void> _autoPrintNewBookings(List<BookingRequest> bookings) async {
+    if (kIsWeb ||
+        !(Platform.isWindows || Platform.isMacOS || Platform.isLinux)) {
+      return;
+    }
+
+    if (!_printPrimed) {
+      for (final b in bookings) {
+        _printedBookingRequestIds.add(b.bookingRequestId);
+      }
+      _printPrimed = true;
+      return;
+    }
+
+    for (final booking in bookings) {
+      // slot yang jamnya sudah lewat total tidak perlu slip - kasir tidak
+      // bisa lagi menyiapkan ruangannya.
+      if (booking.isExpired) continue;
+      if (_printedBookingRequestIds.add(booking.bookingRequestId)) {
+        await _printBookingSlip(booking);
+      }
+    }
+  }
+
+  Future<void> _printBookingSlip(BookingRequest booking) async {
+    final start = booking.startAt;
+    if (start == null) return;
+
+    try {
+      await ReceiptPrinterService().printBookingSlip(
+        customerName: booking.customerName,
+        start: start,
+        durationHours: booking.durationHours,
+        roomLabel: booking.roomLabel,
+      );
+    } catch (e) {
+      // Printer belum di-set / kertas habis / offline - jangan sampai satu
+      // slip gagal menghentikan polling booking. Sudah masuk
+      // _printedBookingRequestIds jadi tidak dicoba ulang tiap tick.
+      debugPrint(
+        "[BOOKING] gagal cetak slip booking #${booking.bookingRequestId}: $e",
+      );
     }
   }
 
