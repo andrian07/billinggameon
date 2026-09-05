@@ -23,6 +23,7 @@ const _routesByKey = {
   'laporan_saldo': '/laporan/saldo',
   'laporan_stok': '/laporan/stok',
   'laporan_pembelian': '/laporan/pembelian',
+  'sync_online': '/sync-online',
   'unit': '/unit',
   'kategori': '/kategori',
   'setting_table': '/setting/table',

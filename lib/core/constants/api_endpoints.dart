@@ -82,6 +82,10 @@ class ApiEndpoints {
   static const String purchaseListProduct =
       "$baseUrl/Purchase/list_product_purchase";
 
+  // Sync (laporan online / gameon)
+  static const String syncPending = "$baseUrl/Sync/pending";
+  static const String syncRetry = "$baseUrl/Sync/retry";
+
   // Billing
   static const String tableList = "$baseUrl/Billing/get_table_list";
   static const String bookTable = "$baseUrl/Billing/book_table";

@@ -135,6 +135,11 @@ class AppSidebar extends StatelessWidget {
           icon: Icons.shopping_cart_outlined,
           menuKey: "laporan_pembelian",
         ),
+        AppMenuItem(
+          title: "Sinkron Online",
+          icon: Icons.cloud_sync_outlined,
+          menuKey: "sync_online",
+        ),
       ],
     ),
     SidebarSection(
@@ -196,9 +201,12 @@ class AppSidebar extends StatelessWidget {
               // Booking Room is likewise always shown: member self-service
               // bookings need to reach whichever cashier is on shift, so
               // it can't be hidden behind a role that hasn't been granted
-              // menu access to it.
+              // menu access to it. Sinkron Online has no backend menu_code
+              // either (same reason) - always shown so anyone can notice
+              // and retry data stuck unsynced to the online report.
               if (item.menuKey == 'ganti_password' ||
                   item.menuKey == 'booking' ||
+                  item.menuKey == 'sync_online' ||
                   allowed.contains(item.menuKey))
                 item,
           ],

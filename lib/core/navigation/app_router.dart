@@ -18,6 +18,7 @@ import '../../features/report/cafe_report_page.dart';
 import '../../features/report/purchase_report_page.dart';
 import '../../features/report/saldo_report_page.dart';
 import '../../features/report/stock_report_page.dart';
+import '../../features/sync/sync_page.dart';
 import '../../features/role/role_page.dart';
 import '../../features/settings/broadcast_page.dart';
 import '../../features/settings/change_password_page.dart';
@@ -163,6 +164,10 @@ final appRouter = GoRouter(
       path: "/laporan/pembelian",
       pageBuilder: (context, state) =>
           _fadeThroughPage(const PurchaseReportPage()),
+    ),
+    GoRoute(
+      path: "/sync-online",
+      pageBuilder: (context, state) => _fadeThroughPage(const SyncPage()),
     ),
     GoRoute(
       path: "/unit",
