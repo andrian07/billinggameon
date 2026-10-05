@@ -18,6 +18,7 @@ import '../data/member_approval_repository.dart';
 import 'member_approval_wait_dialog.dart';
 
 class PaymentResult {
+  final int transactionId;
   final String paymentMethod;
   final String? customerName;
   final String? promo;
@@ -26,6 +27,7 @@ class PaymentResult {
   final int total;
 
   const PaymentResult({
+    required this.transactionId,
     required this.paymentMethod,
     this.customerName,
     this.promo,
@@ -436,7 +438,7 @@ class _PaymentDialogState extends State<PaymentDialog> {
       // dipakai pada percobaan pertama & percobaan ulang setelah disetujui.
       final approvalRef = generateApprovalRef();
 
-      Future<void> pay() => _billingRepository.submitPayment(
+      Future<int> pay() => _billingRepository.submitPayment(
         tableId: widget.table.id,
         mode: widget.table.sessionType,
         startTime: startAt,
@@ -460,8 +462,9 @@ class _PaymentDialogState extends State<PaymentDialog> {
         memberApprovalRef: approvalRef,
       );
 
+      int transactionId;
       try {
-        await pay();
+        transactionId = await pay();
       } on MemberApprovalRequiredException catch (e) {
         if (!mounted) return;
         final outcome = await showDialog<MemberApprovalOutcome>(
@@ -481,12 +484,13 @@ class _PaymentDialogState extends State<PaymentDialog> {
           });
           return;
         }
-        await pay(); // sudah disetujui -> lanjut potong saldo & simpan
+        transactionId = await pay(); // sudah disetujui -> lanjut potong saldo & simpan
       }
 
       if (!mounted) return;
       Navigator.of(context).pop(
         PaymentResult(
+          transactionId: transactionId,
           paymentMethod: paymentMethod.name,
           customerName: _customerName,
           promo: _selectedPromo?.name,

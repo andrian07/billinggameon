@@ -265,7 +265,9 @@ class BillingRepository {
     });
   }
 
-  Future<void> submitPayment({
+  /// Returns the new row's `transaction_id` — used to anchor the printed
+  /// invoice number to the real backend record (see [InvoiceRepository]).
+  Future<int> submitPayment({
     required String tableId,
     required SessionType? mode,
     required DateTime startTime,
@@ -316,6 +318,8 @@ class BillingRepository {
         approval is Map<String, dynamic> ? approval : null,
       );
     }
+
+    return int.tryParse(data['transaction_id']?.toString() ?? "") ?? 0;
   }
 
   Future<Map<String, dynamic>> _post(

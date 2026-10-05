@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../core/constants/business_info.dart';
+
 /// Persists the logged-in session so it survives a page reload — Flutter web
 /// rebuilds the whole app from scratch on a browser refresh, and without
 /// this the user would always land back on the login page.
@@ -77,13 +79,11 @@ class SessionStorage {
     return result;
   }
 
-  /// Branch (cabang) the logged-in cashier belongs to - 1 = Danau Sentarum,
-  /// 2 = P.Aim (from ms_user.user_branch, see Auth_model::login in
-  /// billing_api). Used to scope the booking room list to this branch only.
-  /// Defaults to 1 for sessions saved before this field existed.
+  /// Branch (cabang) this install belongs to - fixed per installation via
+  /// [BusinessInfo.outletCode], not per logged-in user (every account on
+  /// this machine shares the same branch).
   Future<int> getBranch() async {
-    final session = await getSession();
-    return int.tryParse(session?['branch']?.toString() ?? "") ?? 1;
+    return int.tryParse(BusinessInfo.outletCode) ?? 1;
   }
 
   Future<void> clearSession() async {

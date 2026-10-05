@@ -5,10 +5,10 @@ import '../widgets/payment_dialog.dart';
 
 /// Builds invoice data for the receipt printer, from the table and the
 /// payment result — [PaymentResult] already carries the real subtotal,
-/// promo discount, and total computed by [PaymentDialog]'s pricing logic.
+/// promo discount, total, and [PaymentResult.transactionId] (the backend's
+/// real `transaction_id`) that anchors the printed invoice number to the
+/// actual stored record, same pattern as [CafeInvoiceRepository].
 class InvoiceRepository {
-  int _localSequence = 0;
-
   Future<Receipt> generateInvoice(
     PoolTable table,
     PaymentResult payment, {
@@ -18,13 +18,11 @@ class InvoiceRepository {
     final start = table.startAt ?? now;
     final duration = now.difference(start);
 
-    _localSequence++;
-
     return Future.value(
       Receipt(
         businessName: BusinessInfo.name,
         businessAddress: BusinessInfo.address,
-        invoiceNumber: _buildInvoiceNumber(now),
+        invoiceNumber: _buildInvoiceNumber(now, payment.transactionId),
         tableLabel: "${_tableNumber(table)} - ${_sessionLabel(table)}",
         periods: const [],
         date: now,
@@ -41,10 +39,11 @@ class InvoiceRepository {
     );
   }
 
-  String _buildInvoiceNumber(DateTime now) {
+  String _buildInvoiceNumber(DateTime now, int transactionId) {
     String two(int n) => n.toString().padLeft(2, '0');
     final date = "${now.year}-${two(now.month)}-${two(now.day)}";
-    return "INV/${BusinessInfo.outletCode}/$date/${_localSequence.toString().padLeft(10, '0')}";
+    return "INV/${BusinessInfo.outletCode}/$date/"
+        "${transactionId.toString().padLeft(10, '0')}";
   }
 
   String _tableNumber(PoolTable table) =>
