@@ -1,7 +1,7 @@
 class ApiEndpoints {
   ApiEndpoints._();
 
-  static const String baseUrl = "http://localhost/backendbillinggameon";
+  static const String baseUrl = "http://localhost/billing_api";
 
   // Auth
   static const String login = "$baseUrl/Auth/login";

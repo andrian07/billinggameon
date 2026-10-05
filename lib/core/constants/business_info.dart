@@ -1,7 +1,7 @@
 class BusinessInfo {
   BusinessInfo._();
 
-  static const name = "Gameon (Dansen)";
-  static const address = "Jl. Danau Sentarum";
-  static const outletCode = "1";
+  static const name = "Gameon (P.Aim)";
+  static const address = "Jl. P. AIM";
+  static const outletCode = "2";
 }
