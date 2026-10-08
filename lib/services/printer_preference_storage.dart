@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:unified_esc_pos_printer/unified_esc_pos_printer.dart';
 
 /// Which transport the saved printer uses.
 enum PrinterKind { usb, network }
@@ -19,10 +20,18 @@ class PrinterSelection {
   final String identifier;
   final String? label;
 
+  /// Paper width of the physical roll loaded in this printer — [Ticket]
+  /// uses it to compute how many characters fit per line, so every row,
+  /// separator, and column width in [TicketLayout] adapts automatically
+  /// (58mm prints narrower than 80mm). Defaults to 80mm, the previous
+  /// hardcoded behavior, for selections saved before this field existed.
+  final PaperSize paperSize;
+
   const PrinterSelection({
     required this.kind,
     required this.identifier,
     this.label,
+    this.paperSize = PaperSize.mm80,
   });
 
   bool get isNetwork => kind == PrinterKind.network;
@@ -41,6 +50,7 @@ class PrinterSelection {
         "kind": kind.name,
         "identifier": identifier,
         if (label != null) "label": label,
+        "paperSize": paperSize.name,
       };
 
   static PrinterSelection? fromStored(String? raw) {
@@ -57,6 +67,10 @@ class PrinterSelection {
           kind: kind,
           identifier: id,
           label: decoded["label"]?.toString(),
+          paperSize: PaperSize.values.firstWhere(
+            (p) => p.name == decoded["paperSize"],
+            orElse: () => PaperSize.mm80,
+          ),
         );
       }
     } catch (_) {

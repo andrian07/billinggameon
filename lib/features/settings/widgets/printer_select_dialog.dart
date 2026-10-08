@@ -27,6 +27,7 @@ class _PrinterSelectDialogState extends State<PrinterSelectDialog> {
   bool _scanning = true;
   bool _testing = false;
   String? _error;
+  PaperSize _paperSize = PaperSize.mm80;
 
   /// Combined list: USB devices from the scan + network devices (from the
   /// subnet scan and/or added manually), de-duplicated by [_keyFor].
@@ -106,6 +107,7 @@ class _PrinterSelectDialogState extends State<PrinterSelectDialog> {
           if (d is UsbPrinterDevice || d is NetworkPrinterDevice) _addOrKeep(d);
         }
         _selectedKey = saved != null ? _keyForSelection(saved) : null;
+        _paperSize = saved?.paperSize ?? PaperSize.mm80;
         _scanning = false;
       });
     } catch (e) {
@@ -152,7 +154,10 @@ class _PrinterSelectDialogState extends State<PrinterSelectDialog> {
       _error = null;
     });
     try {
-      await ReceiptPrinterService().printTestReceipt(device);
+      await ReceiptPrinterService().printTestReceipt(
+        device,
+        paperSize: _paperSize,
+      );
       if (!mounted) return;
       messenger.showSnackBar(
         const SnackBar(content: Text("Nota tes dikirim ke printer.")),
@@ -177,12 +182,14 @@ class _PrinterSelectDialogState extends State<PrinterSelectDialog> {
           kind: PrinterKind.usb,
           identifier: device.identifier,
           label: device.name,
+          paperSize: _paperSize,
         );
       } else if (device is NetworkPrinterDevice) {
         selection = PrinterSelection(
           kind: PrinterKind.network,
           identifier: "${device.host}:${device.port}",
           label: device.name == device.host ? null : device.name,
+          paperSize: _paperSize,
         );
       }
     }
@@ -215,6 +222,8 @@ class _PrinterSelectDialogState extends State<PrinterSelectDialog> {
             const SizedBox(height: 20),
             const Divider(color: AppColors.divider, height: 1),
             const SizedBox(height: 16),
+            _buildPaperSizeSelector(),
+            const SizedBox(height: 16),
             ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 380),
               child: _buildBody(),
@@ -228,6 +237,38 @@ class _PrinterSelectDialogState extends State<PrinterSelectDialog> {
           ],
         ),
       ),
+    );
+  }
+
+  /// Ukuran kertas thermal yang dipakai - menentukan berapa karakter muat
+  /// per baris, jadi setiap row/separator di [TicketLayout] otomatis
+  /// menyesuaikan lebar kertas yang sebenarnya (58mm lebih sempit dari
+  /// 80mm). Salah pilih bikin teks di struk saling tabrakan/rusak karena
+  /// dihitung untuk kertas yang lebih lebar dari yang sebenarnya terpasang.
+  Widget _buildPaperSizeSelector() {
+    return Row(
+      children: [
+        Text(
+          "Ukuran Kertas",
+          style: AppText.caption.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: SegmentedButton<PaperSize>(
+            segments: const [
+              ButtonSegment(value: PaperSize.mm58, label: Text("58 mm")),
+              ButtonSegment(value: PaperSize.mm80, label: Text("80 mm")),
+            ],
+            selected: {_paperSize},
+            onSelectionChanged: (selected) =>
+                setState(() => _paperSize = selected.first),
+            style: SegmentedButton.styleFrom(
+              selectedBackgroundColor: AppColors.primary.withValues(alpha: .15),
+              selectedForegroundColor: AppColors.primary,
+            ),
+          ),
+        ),
+      ],
     );
   }
 

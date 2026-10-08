@@ -22,15 +22,19 @@ class ReceiptPrinterException implements Exception {
 
 class ReceiptPrinterService {
   Future<void> printReceipt(Receipt receipt) {
-    return _print(buildTicket: () => _buildTicket(receipt));
+    return _print(buildTicket: (paperSize) => _buildTicket(receipt, paperSize));
   }
 
   Future<void> printCafeReceipt(CafeReceipt receipt) {
-    return _print(buildTicket: () => _buildCafeTicket(receipt));
+    return _print(
+      buildTicket: (paperSize) => _buildCafeTicket(receipt, paperSize),
+    );
   }
 
   Future<void> printSaldoReceipt(SaldoReceipt receipt) {
-    return _print(buildTicket: () => _buildSaldoTicket(receipt));
+    return _print(
+      buildTicket: (paperSize) => _buildSaldoTicket(receipt, paperSize),
+    );
   }
 
   /// Kitchen order slip for a POS "keep" (parked order) save — [items] is
@@ -43,7 +47,8 @@ class ReceiptPrinterService {
     required List<CartItem> items,
   }) {
     return _print(
-      buildTicket: () => _buildKitchenTicket(keepCode, customerName, items),
+      buildTicket: (paperSize) =>
+          _buildKitchenTicket(keepCode, customerName, items, paperSize),
     );
   }
 
@@ -58,11 +63,12 @@ class ReceiptPrinterService {
     required String roomLabel,
   }) {
     return _print(
-      buildTicket: () => _buildBookingSlipTicket(
+      buildTicket: (paperSize) => _buildBookingSlipTicket(
         customerName: customerName,
         start: start,
         durationHours: durationHours,
         roomLabel: roomLabel,
+        paperSize: paperSize,
       ),
     );
   }
@@ -72,8 +78,9 @@ class ReceiptPrinterService {
     required DateTime start,
     required int durationHours,
     required String roomLabel,
+    required PaperSize paperSize,
   }) async {
-    final ticket = await Ticket.create(PaperSize.mm80);
+    final ticket = await Ticket.create(paperSize);
 
     ticket.text(
       "BOOKING ROOM",
@@ -104,10 +111,13 @@ class ReceiptPrinterService {
   /// actually prints — without saving the choice or running a real
   /// transaction. [device] is the in-memory pick from the dialog, which may
   /// not be the saved selection yet, so this bypasses [PrinterPreferenceStorage].
-  Future<void> printTestReceipt(PrinterDevice device) async {
+  Future<void> printTestReceipt(
+    PrinterDevice device, {
+    PaperSize paperSize = PaperSize.mm80,
+  }) async {
     final manager = PrinterManager();
     try {
-      await _runTest(manager, device).timeout(
+      await _runTest(manager, device, paperSize).timeout(
         const Duration(seconds: 15),
         onTimeout: () => throw const ReceiptPrinterException(
           "Printer tidak merespon dalam 15 detik. Periksa koneksi printer, "
@@ -125,11 +135,15 @@ class ReceiptPrinterService {
     }
   }
 
-  Future<void> _runTest(PrinterManager manager, PrinterDevice device) async {
+  Future<void> _runTest(
+    PrinterManager manager,
+    PrinterDevice device,
+    PaperSize paperSize,
+  ) async {
     // LAN: connect straight to host:port, same as a real receipt print.
     if (device is NetworkPrinterDevice) {
       await manager.connect(device);
-      await manager.printTicket(await _buildTestTicket());
+      await manager.printTicket(await _buildTestTicket(paperSize));
       await manager.disconnect();
       return;
     }
@@ -150,12 +164,12 @@ class ReceiptPrinterService {
       orElse: () => excludeVirtualPrinters(printers).first,
     );
     await manager.connect(match);
-    await manager.printTicket(await _buildTestTicket());
+    await manager.printTicket(await _buildTestTicket(paperSize));
     await manager.disconnect();
   }
 
-  Future<Ticket> _buildTestTicket() async {
-    final ticket = await Ticket.create(PaperSize.mm80);
+  Future<Ticket> _buildTestTicket(PaperSize paperSize) async {
+    final ticket = await Ticket.create(paperSize);
     final now = DateTime.now();
 
     ticket.text(
@@ -203,7 +217,7 @@ class ReceiptPrinterService {
   /// Shared USB scan/connect/print/disconnect flow — [buildTicket] builds
   /// whichever ticket layout the caller needs.
   Future<void> _print({
-    required Future<Ticket> Function() buildTicket,
+    required Future<Ticket> Function(PaperSize paperSize) buildTicket,
   }) async {
     final manager = PrinterManager();
 
@@ -232,15 +246,16 @@ class ReceiptPrinterService {
 
   Future<void> _run(
     PrinterManager manager,
-    Future<Ticket> Function() buildTicket,
+    Future<Ticket> Function(PaperSize paperSize) buildTicket,
   ) async {
     final selection = await PrinterPreferenceStorage().getSelection();
+    final paperSize = selection?.paperSize ?? PaperSize.mm80;
 
     // LAN printer: connect straight to the saved host:port — no scan needed
     // (subnet discovery is slow and often finds nothing on wired networks).
     if (selection != null && selection.isNetwork) {
       await manager.connect(resolveSelection(const [], selection)!);
-      await manager.printTicket(await buildTicket());
+      await manager.printTicket(await buildTicket(paperSize));
       await manager.disconnect();
       return;
     }
@@ -256,12 +271,12 @@ class ReceiptPrinterService {
     }
 
     await manager.connect(pickPrinter(printers, selection));
-    await manager.printTicket(await buildTicket());
+    await manager.printTicket(await buildTicket(paperSize));
     await manager.disconnect();
   }
 
-  Future<Ticket> _buildTicket(Receipt receipt) async {
-    final ticket = await Ticket.create(PaperSize.mm80);
+  Future<Ticket> _buildTicket(Receipt receipt, PaperSize paperSize) async {
+    final ticket = await Ticket.create(paperSize);
 
     TicketLayout.header(
       ticket,
@@ -310,8 +325,11 @@ class ReceiptPrinterService {
     return ticket;
   }
 
-  Future<Ticket> _buildCafeTicket(CafeReceipt receipt) async {
-    final ticket = await Ticket.create(PaperSize.mm80);
+  Future<Ticket> _buildCafeTicket(
+    CafeReceipt receipt,
+    PaperSize paperSize,
+  ) async {
+    final ticket = await Ticket.create(paperSize);
 
     TicketLayout.header(
       ticket,
@@ -374,8 +392,11 @@ class ReceiptPrinterService {
     return ticket;
   }
 
-  Future<Ticket> _buildSaldoTicket(SaldoReceipt receipt) async {
-    final ticket = await Ticket.create(PaperSize.mm80);
+  Future<Ticket> _buildSaldoTicket(
+    SaldoReceipt receipt,
+    PaperSize paperSize,
+  ) async {
+    final ticket = await Ticket.create(paperSize);
 
     TicketLayout.header(
       ticket,
@@ -403,8 +424,9 @@ class ReceiptPrinterService {
     String keepCode,
     String? customerName,
     List<CartItem> items,
+    PaperSize paperSize,
   ) async {
-    final ticket = await Ticket.create(PaperSize.mm80);
+    final ticket = await Ticket.create(paperSize);
     final now = DateTime.now();
 
     ticket.text(

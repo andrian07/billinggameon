@@ -25,19 +25,25 @@ class CashierSummaryPrinterService {
     CashierClosingSummary summary, {
     required String cashierName,
   }) {
-    return _print(() => _buildSummaryTicket(summary, cashierName));
+    return _print(
+      (paperSize) => _buildSummaryTicket(summary, cashierName, paperSize),
+    );
   }
 
   Future<void> printCafeItems(
     CashierClosingSummary summary, {
     required String cashierName,
   }) {
-    return _print(() => _buildCafeItemsTicket(summary, cashierName));
+    return _print(
+      (paperSize) => _buildCafeItemsTicket(summary, cashierName, paperSize),
+    );
   }
 
   /// Shared USB scan/connect/print/disconnect flow — [buildTicket] builds
   /// whichever ticket layout the caller needs.
-  Future<void> _print(Future<Ticket> Function() buildTicket) async {
+  Future<void> _print(
+    Future<Ticket> Function(PaperSize paperSize) buildTicket,
+  ) async {
     final manager = PrinterManager();
 
     try {
@@ -65,14 +71,15 @@ class CashierSummaryPrinterService {
 
   Future<void> _run(
     PrinterManager manager,
-    Future<Ticket> Function() buildTicket,
+    Future<Ticket> Function(PaperSize paperSize) buildTicket,
   ) async {
     final selection = await PrinterPreferenceStorage().getSelection();
+    final paperSize = selection?.paperSize ?? PaperSize.mm80;
 
     // LAN printer: connect straight to the saved host:port — no scan needed.
     if (selection != null && selection.isNetwork) {
       await manager.connect(resolveSelection(const [], selection)!);
-      await manager.printTicket(await buildTicket());
+      await manager.printTicket(await buildTicket(paperSize));
       await manager.disconnect();
       return;
     }
@@ -88,15 +95,16 @@ class CashierSummaryPrinterService {
     }
 
     await manager.connect(pickPrinter(printers, selection));
-    await manager.printTicket(await buildTicket());
+    await manager.printTicket(await buildTicket(paperSize));
     await manager.disconnect();
   }
 
   Future<Ticket> _buildSummaryTicket(
     CashierClosingSummary summary,
     String cashierName,
+    PaperSize paperSize,
   ) async {
-    final ticket = await Ticket.create(PaperSize.mm80);
+    final ticket = await Ticket.create(paperSize);
 
     ticket.text(
       "TUTUP KAS",
@@ -178,8 +186,9 @@ class CashierSummaryPrinterService {
   Future<Ticket> _buildCafeItemsTicket(
     CashierClosingSummary summary,
     String cashierName,
+    PaperSize paperSize,
   ) async {
-    final ticket = await Ticket.create(PaperSize.mm80);
+    final ticket = await Ticket.create(paperSize);
 
     ticket.text(
       "ITEM CAFE TERJUAL",

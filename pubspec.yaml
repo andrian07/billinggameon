@@ -2,7 +2,7 @@ name: billiard_billing
 description: Billing System for Billiard
 publish_to: "none"
 
-version: 1.23.1+39
+version: 1.24.0+40
 
 environment:
   sdk: ">=3.12.0 <4.0.0"

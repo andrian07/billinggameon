@@ -16,7 +16,18 @@ class InvoiceRepository {
   }) {
     final now = DateTime.now();
     final start = table.startAt ?? now;
-    final duration = now.difference(start);
+    // Mode Timer: kalau pembayaran diproses SETELAH durasinya habis (kasir
+    // telat checkout), struk tetap harus menunjukkan jam selesai & durasi
+    // SESUAI DURASI YANG DIBELI (table.endAt) - bukan jam saat pembayaran
+    // diproses, yang bisa lebih lama. Sama persis dengan cara backend
+    // menghitung tagihan (lihat Billing::calculation_price(), $end_ts =
+    // min(table_end_time, sekarang)) - supaya durasi di struk selalu
+    // konsisten dengan yang ditagih.
+    final tableEndAt = table.endAt;
+    final end = table.sessionType == SessionType.timer && tableEndAt != null
+        ? (now.isBefore(tableEndAt) ? now : tableEndAt)
+        : now;
+    final duration = end.difference(start);
 
     return Future.value(
       Receipt(
@@ -27,7 +38,7 @@ class InvoiceRepository {
         periods: const [],
         date: now,
         startAt: start,
-        endAt: now,
+        endAt: end,
         totalDuration: duration.isNegative ? Duration.zero : duration,
         subtotal: payment.subtotal,
         discountAmount: payment.discountAmount,
