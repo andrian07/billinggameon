@@ -1,7 +1,7 @@
 class ApiEndpoints {
   ApiEndpoints._();
 
-  static const String baseUrl = "http://localhost/backendbillinggameon_dansen";
+  static const String baseUrl = "http://localhost/backendbillinggameon";
 
   // Auth
   static const String login = "$baseUrl/Auth/login";
@@ -92,6 +92,7 @@ class ApiEndpoints {
   static const String syncPending = "$baseUrl/Sync/pending";
   static const String syncPendingCount = "$baseUrl/Sync/pending_count";
   static const String syncRetry = "$baseUrl/Sync/retry";
+  static const String syncClearApiLogs = "$baseUrl/Sync/clear_api_logs";
 
   // Billing
   static const String tableList = "$baseUrl/Billing/get_table_list";

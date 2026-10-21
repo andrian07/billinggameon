@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../services/api_logs_cleanup_watcher.dart';
 import '../../services/booking_watcher.dart';
 import '../../services/product_stock_sync_watcher.dart';
 import '../../services/session_storage.dart';
@@ -41,6 +42,7 @@ Future<void> navigateToMenu(BuildContext context, String key) async {
     BookingWatcher.instance.stop();
     SyncWatcher.instance.stop();
     ProductStockSyncWatcher.instance.stop();
+    ApiLogsCleanupWatcher.instance.stop();
     await SessionStorage().clearSession();
     if (context.mounted) context.go('/login');
     return;

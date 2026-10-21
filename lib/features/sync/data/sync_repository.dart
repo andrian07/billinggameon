@@ -77,6 +77,12 @@ class SyncRepository {
     });
   }
 
+  /// Kosongkan `history_hit_api_logs` (log kegagalan hit API ke gameon) di
+  /// server - dipanggil berkala oleh [ApiLogsCleanupWatcher].
+  Future<void> clearApiLogs() {
+    return _post(ApiEndpoints.syncClearApiLogs, const {});
+  }
+
   Future<Map<String, dynamic>> _post(
     String url,
     Map<String, dynamic> payload,

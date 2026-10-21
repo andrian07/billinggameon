@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../services/api_logs_cleanup_watcher.dart';
 import '../../services/booking_watcher.dart';
 import '../../services/product_stock_sync_watcher.dart';
 import '../../services/session_storage.dart';
@@ -57,6 +58,7 @@ class _AppLayoutState extends State<AppLayout> {
     BookingWatcher.instance.start();
     SyncWatcher.instance.start();
     ProductStockSyncWatcher.instance.start();
+    ApiLogsCleanupWatcher.instance.start();
   }
 
   Future<void> _loadAllowedMenuKeys() async {
